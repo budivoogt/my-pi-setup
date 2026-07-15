@@ -18,6 +18,7 @@ The feature is observable through Pi's model-facing subagent tools and `/subagen
 - [x] (2026-07-15 16:18Z) Added concurrency, role-policy, cleanup, deferred-delivery generation, and lifecycle tests.
 - [x] (2026-07-15 16:35Z) Updated installation, configuration, provenance, licensing, and safety documentation.
 - [x] (2026-07-15 17:28Z) Passed formatting, type checks, 119 offline tests, 34 focused subagent tests, an independent race probe, and a live Pi parent-to-child lifecycle smoke test.
+- [x] (2026-07-15 18:20Z) Added a selective Pi package manifest, bundled role defaults with user overrides, Codex-mapped role models, and eight-thread parity for the local Pi installation flow.
 
 ## Surprises & Discoveries
 
@@ -57,6 +58,10 @@ The feature is observable through Pi's model-facing subagent tools and `/subagen
   Rationale: depth one and a conservative thread cap avoid runaway recursion and process/model fan-out; both can be revisited after lifecycle tests are mature.
   Date/Author: 2026-07-15 / Codex
 
+- Decision: Raise the global cap to eight when mapping Budi's live Codex role configuration into Pi.
+  Rationale: the user explicitly requested configuration parity after the initial four-agent milestone. The Pi cap remains global across all harnesses, so documentation calls out that it is an approximation of Codex threads.
+  Date/Author: 2026-07-15 / Codex
+
 - Decision: Keep the in-process Pi SDK backend as the default and defer an optional RPC isolation backend.
   Rationale: Pi 0.80.7 can reuse the parent's model registry and extension resources directly; a separate RPC process needs explicit provider, credential, environment, and shutdown propagation before it is safer than the in-process path.
   Date/Author: 2026-07-15 / Codex
@@ -71,7 +76,7 @@ The first milestone deliberately does not claim operating-system isolation. Tool
 
 `extensions/subagents/index.ts` is the Pi extension entrypoint. It registers parent-facing tools, hooks parent-session lifecycle events, queues deferred results, and owns the dashboard wiring. `extensions/subagents/src/manager.ts` stores each child in a registry, folds backend events into snapshots, enforces the running-agent cap, and controls wait, send, cancel, pruning, and teardown. `extensions/subagents/src/backend.ts` defines the common persistent-session contract. `extensions/subagents/src/backends/pi.ts` creates an in-process Pi `AgentSession`; this is the primary path being hardened. The Claude and Codex adapters translate their native protocols into the same event model.
 
-A role is a named TOML file in `agents/`. It contains durable developer instructions plus model, reasoning, tool, and working-directory defaults. Durable means the instructions are appended to the child session's system prompt, rather than placed only in its first user message. A tool allowlist names exactly which Pi tools the role may call. An initial-cwd check prevents a child from starting outside the parent's current repository unless the role explicitly permits it. It is not filesystem containment; tools that accept absolute paths still have the parent process's permissions.
+A role is a named TOML profile. Defaults are bundled in `extensions/subagents/agents/`, while files under `~/.pi/agent/agents/` replace defaults by role name. A profile contains durable developer instructions plus model, reasoning, tool, and working-directory defaults. Durable means the instructions are appended to the child session's system prompt, rather than placed only in its first user message. A tool allowlist names exactly which Pi tools the role may call. An initial-cwd check prevents a child from starting outside the parent's current repository unless the role explicitly permits it. It is not filesystem containment; tools that accept absolute paths still have the parent process's permissions.
 
 The lifecycle terms mirror Codex: spawn creates a persistent child session and immediately returns an id; send steers a running turn or starts another turn in an idle session; wait blocks for selected children; interrupt aborts active work but retains the session for a later send; close aborts if necessary, releases resources, and removes the child from the active registry.
 
@@ -79,7 +84,7 @@ The lifecycle terms mirror Codex: spawn creates a persistent child session and i
 
 First, convert the root into an npm workspace containing every packaged extension under `extensions/*`, use one lockfile, and ensure all runtime dependencies install from the documented root command. Keep dependency changes mechanical and pinned where upstream currently relies on beta APIs.
 
-Second, add `extensions/subagents/src/roles.ts`. It will discover `agents/*.toml` beneath Pi's agent directory, validate a small explicit schema, reject duplicate role names and invalid reasoning levels, and return clear diagnostics. Add default explorer, reviewer, worker, editor, and monitor roles. Extend `SpawnTask` and snapshots with role metadata. Resolve the role in the tool layer, apply its model and effort defaults, validate the requested cwd, pass its tool allowlist into `createAgentSession`, and append its instructions to the child resource loader's system prompt.
+Second, add `extensions/subagents/src/roles.ts`. It discovers bundled defaults and TOML overrides beneath Pi's agent directory, validates a small explicit schema, rejects duplicates within either layer and invalid reasoning levels, and returns clear diagnostics. Add default explorer, reviewer, worker, editor, and monitor roles. Extend `SpawnTask` and snapshots with role metadata. Resolve the role in the tool layer, apply its model and effort defaults, validate the requested cwd, pass its tool allowlist into `createAgentSession`, and append its instructions to the child resource loader's system prompt.
 
 Third, expose manager `send` through `subagent_send`, rename cancellation semantics in documentation to interruption while preserving the compatible `subagent_cancel` tool, and add `subagent_close`. Closing must be bounded, preserve already-settled deferred results, remove the entry, and make later send/check calls fail clearly. Update every child denylist so children cannot invoke any orchestration tool.
 
@@ -102,7 +107,7 @@ For local smoke verification, launch Pi with the extension from this checkout, a
 
 ## Validation and Acceptance
 
-Acceptance requires a clean dependency install and all non-live tests passing. Role parsing must reject unknown tools only when Pi cannot expose them, enforce the parent's cwd boundary by default, and make explorer/reviewer roles omit bash/edit/write. A child role's instructions must appear in its effective system prompt in a backend test or live smoke. Five concurrent spawn attempts must produce four children and one concurrency error. Interrupt must stop a running child without destroying its session, a subsequent send must create another completed turn, and close must dispose the session and make the id unavailable. Deferred output must be delivered once, and explicit wait must prevent duplicate delivery.
+Acceptance requires a clean dependency install and all non-live tests passing. Role parsing must reject unknown tools only when Pi cannot expose them, enforce the parent's cwd boundary by default, and make explorer/reviewer roles omit bash/edit/write. A child role's instructions must appear in its effective system prompt in a backend test or live smoke. Nine concurrent spawn attempts must produce eight children and one concurrency error. Interrupt must stop a running child without destroying its session, a subsequent send must create another completed turn, and close must dispose the session and make the id unavailable. Deferred output must be delivered once, and explicit wait must prevent duplicate delivery.
 
 The extension must register spawn, send, wait, cancel/interrupt, close, check, and list. Child sessions must not receive any of those tools. Parent shutdown must dispose all children within bounded time.
 

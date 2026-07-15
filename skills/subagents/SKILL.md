@@ -40,9 +40,10 @@ Select the narrowest role that fits. Omit `role` to use `worker`.
 - `worker`: implement a bounded task with normal coding tools.
 - `monitor`: run or watch a command and report status without editing.
 
-Role profiles live in `agents/*.toml`. They add durable system instructions and
-an exact tool allowlist. They apply only to the Pi harness. By default, a role
-cannot set `working_dir` outside the parent's current directory.
+Default role profiles are bundled with the extension. Files in
+`~/.pi/agent/agents/*.toml` override them by role name. Roles add durable system
+instructions and an exact tool allowlist. They apply only to the Pi harness. By
+default, a role cannot set `working_dir` outside the parent's current directory.
 
 ## Claude Code Harness
 
@@ -76,7 +77,7 @@ Requires the Codex CLI to be installed and authenticated.
 
 ## Spawn and Manage
 
-Call `subagent_spawn` with a complete `prompt`, short `name`, chosen `harness`, and optional `role`, `working_dir`, `model`, and `reasoning_effort`. At most four subagents run concurrently.
+Call `subagent_spawn` with a complete `prompt`, short `name`, chosen `harness`, and optional `role`, `working_dir`, `model`, and `reasoning_effort`. At most eight subagents run concurrently.
 
 - `subagent_check({ id })`: peek without blocking.
 - `subagent_list()`: list all runs.

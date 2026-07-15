@@ -11,6 +11,7 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import {
+  BUNDLED_ROLES_DIR,
   assertRoleWorkingDirectory,
   appendRoleSystemPrompts,
   buildRoleSystemPrompts,
@@ -68,12 +69,57 @@ test("loads sorted roles and rejects duplicate role names", () => {
     path.join(rolesDir, "worker.toml"),
     validRole.replace('name = "explorer"', 'name = "worker"'),
   );
-  const roles = loadRoleProfiles(agentDir);
+  const missingBundledDir = path.join(agentDir, "missing-bundled");
+  const roles = loadRoleProfiles(agentDir, missingBundledDir);
   assert.deepEqual([...roles.keys()], ["explorer", "worker"]);
   assert.equal(resolveRoleProfile(roles, "worker").name, "worker");
 
   fs.writeFileSync(path.join(rolesDir, "duplicate.toml"), validRole);
-  assert.throws(() => loadRoleProfiles(agentDir), /Duplicate subagent role/);
+  assert.throws(
+    () => loadRoleProfiles(agentDir, missingBundledDir),
+    /Duplicate subagent role/,
+  );
+});
+
+test("loads Codex-mapped bundled roles and applies whole user overrides by name", () => {
+  const agentDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "subagent-overrides-"),
+  );
+  const rolesDir = path.join(agentDir, "agents");
+  fs.mkdirSync(rolesDir);
+  fs.writeFileSync(path.join(rolesDir, "local-explorer.toml"), validRole);
+  fs.writeFileSync(
+    path.join(rolesDir, "custom.toml"),
+    validRole.replace('name = "explorer"', 'name = "custom"'),
+  );
+
+  const roles = loadRoleProfiles(agentDir);
+  assert.deepEqual(
+    [...roles.keys()],
+    ["editor", "explorer", "monitor", "reviewer", "worker", "custom"],
+  );
+  assert.equal(roles.get("explorer")?.model, undefined);
+  assert.equal(roles.get("custom")?.name, "custom");
+
+  const expectedDefaults = {
+    editor: ["openai-codex/gpt-5.6-luna", "medium"],
+    monitor: ["openai-codex/gpt-5.6-luna", "low"],
+    reviewer: ["openai-codex/gpt-5.6-sol", "xhigh"],
+    worker: ["openai-codex/gpt-5.6-terra", "high"],
+  } as const;
+  for (const [name, [model, effort]] of Object.entries(expectedDefaults)) {
+    assert.equal(roles.get(name)?.model, model);
+    assert.equal(roles.get(name)?.reasoningEffort, effort);
+  }
+  assert.ok(fs.existsSync(path.join(BUNDLED_ROLES_DIR, "worker.toml")));
+});
+
+test("bundled explorer keeps the Codex Spark mapping without an override", () => {
+  const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-defaults-"));
+  const explorer = loadRoleProfiles(agentDir).get("explorer");
+  assert.equal(explorer?.model, "openai-codex/gpt-5.3-codex-spark");
+  assert.equal(explorer?.reasoningEffort, "high");
+  assert.deepEqual(explorer?.tools, ["read", "grep", "find", "ls"]);
 });
 
 test("roles are confined to the parent cwd unless explicitly allowed", () => {
@@ -118,7 +164,7 @@ test("reports role tools that Pi did not register", () => {
 
 test("missing role directories and worker profiles fail closed", () => {
   const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-no-roles-"));
-  const roles = loadRoleProfiles(agentDir);
+  const roles = loadRoleProfiles(agentDir, path.join(agentDir, "missing"));
   assert.throws(
     () => resolveRoleProfile(roles, "worker"),
     /Unknown subagent role "worker".*Available roles: none/,

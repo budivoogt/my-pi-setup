@@ -11,7 +11,7 @@ related: "https://github.com/davis7dotsh/my-pi-setup"
 - Added role-driven persistent Pi children with spawn, send, wait, interrupt,
   close, check, and list semantics.
 - Added exact child tool allowlists, durable role instructions, initial-cwd
-  validation, fail-closed role loading, and a four-child concurrency cap.
+  validation, fail-closed role loading, and an eight-child concurrency cap.
 - Made lifecycle transitions and generation-aware deferred delivery race-safe.
 - Consolidated packaged extensions into one root npm workspace and lockfile.
 - Documented installation, safety limits, licensing, and provenance.
@@ -32,6 +32,8 @@ related: "https://github.com/davis7dotsh/my-pi-setup"
   model registry and resources cleanly on Pi 0.80.7.
 - An optional process/RPC backend is deferred until provider, credential,
   environment, and shutdown propagation are designed explicitly.
+- Packaged defaults mirror the local Codex role models; user TOMLs override
+  those defaults by role name.
 - Role cwd policy controls only the initial directory. It is not filesystem
   containment; write-capable parallel children still need separate ownership
   or worktrees.

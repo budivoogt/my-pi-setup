@@ -30,12 +30,14 @@ Unawaited results are delivered automatically when the parent becomes idle.
 | `subagent_close` | Stop if needed, dispose, and remove a child. |
 | `subagent_check` / `subagent_list` | Inspect current activity without blocking. |
 
-Pi children use role profiles from [`agents/`](agents/). The included roles are
-`explorer`, `reviewer`, `editor`, `worker`, and `monitor`. A role supplies durable
-system instructions, model/thinking defaults, and an exact Pi tool allowlist.
-Omitting the role for a Pi child selects `worker`.
+Pi children use bundled role profiles from
+[`extensions/subagents/agents/`](extensions/subagents/agents/). The included
+roles are `explorer`, `reviewer`, `editor`, `worker`, and `monitor`. A role
+supplies durable system instructions, Codex-mapped model/thinking defaults, and
+an exact Pi tool allowlist. Omitting the role for a Pi child selects `worker`.
+Files in `~/.pi/agent/agents/*.toml` override bundled roles by role name.
 
-The parent enforces a four-child concurrency cap and Pi children cannot spawn
+The parent enforces an eight-child concurrency cap and Pi children cannot spawn
 more children. Role-based checks restrict the child's initial working directory
 to the parent's tree unless a role explicitly opts out.
 

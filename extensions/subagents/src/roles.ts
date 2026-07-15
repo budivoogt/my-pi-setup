@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { parse } from "smol-toml";
 import {
   REASONING_EFFORTS,
@@ -21,6 +22,9 @@ export interface RoleProfile {
 type TomlRecord = Record<string, unknown>;
 
 const reasoningEfforts = new Set<string>(REASONING_EFFORTS);
+export const BUNDLED_ROLES_DIR = fileURLToPath(
+  new URL("../agents", import.meta.url),
+);
 
 function requiredString(value: unknown, field: string, sourcePath: string) {
   if (typeof value !== "string" || value.trim() === "") {
@@ -94,8 +98,7 @@ export function parseRoleProfile(source: string, sourcePath: string) {
   } satisfies RoleProfile;
 }
 
-export function loadRoleProfiles(agentDir: string) {
-  const rolesDir = path.join(agentDir, "agents");
+function loadRoleDirectory(rolesDir: string) {
   if (!fs.existsSync(rolesDir)) return new Map<string, RoleProfile>();
 
   const profiles = new Map<string, RoleProfile>();
@@ -119,6 +122,15 @@ export function loadRoleProfiles(agentDir: string) {
     profiles.set(profile.name, profile);
   }
   return profiles;
+}
+
+export function loadRoleProfiles(
+  agentDir: string,
+  bundledRolesDir = BUNDLED_ROLES_DIR,
+) {
+  const bundled = loadRoleDirectory(bundledRolesDir);
+  const overrides = loadRoleDirectory(path.join(agentDir, "agents"));
+  return new Map<string, RoleProfile>([...bundled, ...overrides]);
 }
 
 export function resolveRoleProfile(

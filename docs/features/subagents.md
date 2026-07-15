@@ -22,7 +22,7 @@ preventing duplicate automatic delivery.
 `extensions/subagents/src/backend.ts` defines the common persistent-session
 contract. Pi runs an in-process `AgentSession`; Claude uses its Agent SDK; Codex
 uses `codex app-server`. `extensions/subagents/src/manager.ts` owns the registry,
-race-safe four-agent reservation, event folding, wait interest, pruning, bounded
+race-safe eight-agent reservation, event folding, wait interest, pruning, bounded
 interrupt, and scope cleanup. `extensions/subagents/index.ts` is the Pi extension
 boundary and tool/UI layer.
 
@@ -32,15 +32,22 @@ id. This ordering avoids reporting a closed child as still running.
 
 ## Roles
 
-Pi role files are TOML documents under `agents/`. They require `name`,
-`description`, `developer_instructions`, and a non-empty `tools` array. Optional
-fields are `model`, `reasoning_effort`, and `allow_outside_parent_cwd`.
+Pi role defaults are bundled under `extensions/subagents/agents/`. User TOML
+files under `~/.pi/agent/agents/` override bundled profiles by role name. Each
+profile requires `name`, `description`, `developer_instructions`, and a
+non-empty `tools` array. Optional fields are `model`, `reasoning_effort`, and
+`allow_outside_parent_cwd`.
 
 The tool layer resolves the role before spawn. User-supplied model and effort
 values override role defaults. The role's instructions are appended to Pi's
 system prompt, and its tools are passed to `createAgentSession` as an allowlist.
 The backend denylist is applied afterward and always removes orchestration,
 workflow, and user-question tools.
+
+Bundled models intentionally mirror this setup's Codex CLI roles and fail fast
+when a configured provider/model is unavailable. The eight-agent cap is global
+across Pi, Claude, and Codex backends; it approximates Codex's thread setting
+rather than creating eight isolated operating-system sandboxes.
 
 Requested child directories are resolved through the filesystem before the cwd
 boundary check, so a symlink cannot silently change the child's initial cwd to

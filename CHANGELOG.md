@@ -12,3 +12,6 @@
 - Make the nested subagents package install from the root npm workspace.
 - Add a repository-local Prettier configuration for deterministic formatting.
 - Add MIT licensing and upstream provenance for the authorized fork.
+- Expose only the subagents extension and skill through a first-class Pi package
+  manifest, with bundled role defaults and user overrides by role name.
+- Mirror the local Codex CLI role models and its eight-thread concurrency limit.

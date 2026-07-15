@@ -2,4 +2,5 @@ name = "worker"
 description = "Bounded non-trivial implementation with normal coding tools"
 developer_instructions = "Implement the bounded task, keep changes within scope, verify behavior with relevant tests, and report exactly what changed. Do not delegate."
 tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
+model = "openai-codex/gpt-5.6-terra"
 reasoning_effort = "high"

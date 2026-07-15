@@ -2,7 +2,7 @@
 
 /** Describes subagent_spawn, including harnesses and the fixed concurrency cap. */
 export const SUBAGENT_SPAWN_TOOL_DESCRIPTION =
-  "Spawn a persistent background subagent with its own context window. Choose pi (default in-process Pi session), Claude Code, or Codex CLI. Pi children use a durable role profile; omit role to use worker. Fire-and-forget: this returns immediately with an id. Results arrive automatically or through subagent_wait. Children cannot orchestrate more agents/workflows or ask the user, and cannot see this conversation, so the prompt must be self-contained. Max 4 subagents can run at once.";
+  "Spawn a persistent background subagent with its own context window. Choose pi (default in-process Pi session), Claude Code, or Codex CLI. Pi children use a durable role profile; omit role to use worker. Fire-and-forget: this returns immediately with an id. Results arrive automatically or through subagent_wait. Children cannot orchestrate more agents/workflows or ask the user, and cannot see this conversation, so the prompt must be self-contained. Max 8 subagents can run at once.";
 
 /** Adds background subagent delegation to the parent model's available-tools prompt. */
 export const SUBAGENT_SPAWN_PROMPT_SNIPPET =
@@ -21,7 +21,7 @@ export const SUBAGENT_SPAWN_PARAMETER_DESCRIPTIONS = {
   prompt:
     "Task prompt for the subagent. Must be self-contained: include all needed context, file paths, and what to report back.",
   name: "Short human-readable name for this subagent, shown in listings and the UI",
-  role: 'Pi role profile from agents/*.toml. Defaults to "worker" for pi. Roles are not applied to Claude/Codex backends.',
+  role: 'Pi role profile from bundled defaults or ~/.pi/agent/agents/*.toml overrides. Defaults to "worker" for pi. Roles are not applied to Claude/Codex backends.',
   harness:
     'Harness to run the subagent on: "pi" (in-process pi session; inherits this environment), "claude" (Claude Code), or "codex" (Codex CLI). Choose deliberately per task.',
   workingDir:

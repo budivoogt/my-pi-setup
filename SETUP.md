@@ -1,28 +1,32 @@
 # Setup
 
-Clone this repository to Pi's agent directory, then install the root workspace.
-The workspace declaration installs the nested subagents package and its runtime
-dependencies with one lockfile.
+Install the subagents extension and skill as a pinned Pi Git package. Replace
+`<commit-sha>` with the reviewed commit to install:
 
 ```sh
-cd ~/.pi/agent
-npm ci
-npm run check
-npm test
+pi install git:github.com/budivoogt/my-pi-setup@<commit-sha>
+pi list
 ```
+
+Restart Pi or run `/reload`. The package manifest exposes only the subagents
+extension and skill; it does not enable the fork's other extensions, prompts,
+or themes.
 
 Pi 0.80.7 is the locally verified version. The package targets the
 `@earendil-works/pi-*` distribution used by this setup.
 
 ## Subagent roles
 
-Role profiles live in `~/.pi/agent/agents/*.toml`. Each file declares:
+The package includes default role profiles. To customize one, create a TOML file
+under `~/.pi/agent/agents/` with the same `name`; user roles override packaged
+defaults by name. Each file declares:
 
 ```toml
 name = "explorer"
 description = "Narrow read-only repository exploration"
 developer_instructions = "Locate evidence with file paths. Do not edit."
 tools = ["read", "grep", "find", "ls"]
+model = "openai-codex/gpt-5.3-codex-spark"
 reasoning_effort = "high"
 ```
 
@@ -30,6 +34,24 @@ Optional keys are `model`, `reasoning_effort`, and
 `allow_outside_parent_cwd`. Keep the last option false unless cross-repository
 work is intentional. Pi spawn arguments override a role's model and reasoning
 defaults.
+
+The packaged models mirror the local Codex CLI roles: Spark/high for explorer,
+Luna/medium for editor, Terra/high for worker, Sol/xhigh for reviewer, and
+Luna/low for monitor. Explicit spawn arguments still take precedence.
+
+## Full setup development
+
+Contributors working on the complete extension collection can clone the
+repository elsewhere and install its root workspace without replacing an
+existing Pi agent directory:
+
+```sh
+git clone https://github.com/budivoogt/my-pi-setup.git
+cd my-pi-setup
+npm ci
+npm run check
+npm test
+```
 
 Start Pi from the repository the children should work in. A basic manual check
 is to ask the parent to spawn an `explorer`, inspect it with `/subagents`, send
