@@ -66,7 +66,11 @@ export async function openSubagentPicker(
         new SubagentDashboard(tui, theme, keybindings, view, selection, done),
       {
         overlay: true,
-        overlayOptions: { anchor: "center", width: "100%", maxHeight: "100%" },
+        overlayOptions: {
+          anchor: "center",
+          width: "100%",
+          maxHeight: "100%",
+        },
       },
     );
 
@@ -78,7 +82,11 @@ export async function openSubagentPicker(
         new TakeoverView(tui, theme, keybindings, picked, view, done),
       {
         overlay: true,
-        overlayOptions: { anchor: "center", width: "100%", maxHeight: "100%" },
+        overlayOptions: {
+          anchor: "center",
+          width: "100%",
+          maxHeight: "100%",
+        },
       },
     );
     // After leaving the takeover view, fall back to the dashboard.

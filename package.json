@@ -1,8 +1,8 @@
 {
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.80.6",
-    "@earendil-works/pi-coding-agent": "^0.80.6",
-    "@earendil-works/pi-tui": "^0.80.6",
+    "@earendil-works/pi-ai": "0.80.7",
+    "@earendil-works/pi-coding-agent": "0.80.7",
+    "@earendil-works/pi-tui": "0.80.7",
     "acorn": "^8.17.0",
     "firecrawl": "^4.30.0",
     "typebox": "^1.3.6"
@@ -12,11 +12,15 @@
     "prettier": "^3.9.5",
     "typescript": "^7.0.2"
   },
+  "workspaces": [
+    "extensions/*"
+  ],
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
-    "format": "prettier --write \"extensions/**/*.{ts,cjs}\" \"*.json\"",
-    "format:check": "prettier --check \"extensions/**/*.{ts,cjs}\" \"*.json\"",
-    "test": "node --test --experimental-strip-types extensions/*/*.test.ts"
+    "format": "prettier --write \"extensions/**/*.{ts,cjs}\" \"scripts/**/*.mjs\" \"*.json\"",
+    "format:check": "prettier --check \"extensions/**/*.{ts,cjs}\" \"scripts/**/*.mjs\" \"*.json\"",
+    "test": "node scripts/test.mjs",
+    "test:live:subagents": "npm --workspace extensions/subagents run test:live"
   }
 }

@@ -1,11 +1,15 @@
 ---
 name: subagents
-description: invoke this skill when the user asks you to use subagents
+description: Delegate and manage background work with persistent Pi, Claude Code, or Codex subagents. Use when the user asks for subagents, parallel agent work, delegation, background research, independent review, or a child agent with a separate context window.
 ---
 
 # Subagents
 
 Each subagent is headless, has its own context window, cannot see the parent conversation, cannot ask the user, and cannot spawn subagents or workflows. Give every child a self-contained prompt with paths, constraints, and the expected report.
+
+Keep synthesis and final decisions in the parent. Spawn independent work early,
+continue useful parent work, and wait only when the next step depends on the
+child. Give concurrent writers non-overlapping ownership or separate worktrees.
 
 ## Pi Harness
 
@@ -25,6 +29,20 @@ Pi can use any model shown by `pi --list-models`. Prefer `provider/model-id`; a 
 | `opencode/claude-fable-5`        | `medium`           |
 
 **Thinking budgets:** `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. These map directly to pi thinking levels.
+
+### Pi roles
+
+Select the narrowest role that fits. Omit `role` to use `worker`.
+
+- `explorer`: locate files, symbols, and evidence with read-only tools.
+- `reviewer`: independently review risks and missing tests with read-only tools.
+- `editor`: apply a small, already-decided edit without shell access.
+- `worker`: implement a bounded task with normal coding tools.
+- `monitor`: run or watch a command and report status without editing.
+
+Role profiles live in `agents/*.toml`. They add durable system instructions and
+an exact tool allowlist. They apply only to the Pi harness. By default, a role
+cannot set `working_dir` outside the parent's current directory.
 
 ## Claude Code Harness
 
@@ -58,12 +76,16 @@ Requires the Codex CLI to be installed and authenticated.
 
 ## Spawn and Manage
 
-Call `subagent_spawn` with a complete `prompt`, short `name`, chosen `harness`, and optional `working_dir`, `model`, and `reasoning_effort`. At most four subagents run concurrently.
+Call `subagent_spawn` with a complete `prompt`, short `name`, chosen `harness`, and optional `role`, `working_dir`, `model`, and `reasoning_effort`. At most four subagents run concurrently.
 
 - `subagent_check({ id })`: peek without blocking.
 - `subagent_list()`: list all runs.
 - `subagent_wait({ ids })`: block only when results are required to proceed.
-- `subagent_cancel({ ids })`: stop runs while preserving partial transcripts.
+- `subagent_send({ id, message })`: steer a running child or start another turn in the same idle session.
+- `subagent_interrupt({ id })`: abort the active turn but keep the persistent session.
+- `subagent_cancel({ ids })`: compatibility form for interrupting several children.
+- `subagent_close({ id })`: permanently dispose and remove a child.
 - `/subagents`: inspect or take over a run interactively.
 
-Results return automatically. After spawning, continue useful parent work instead of immediately waiting.
+Results return automatically and explicit waits suppress duplicate delivery.
+Close idle children when their persistent context is no longer useful.

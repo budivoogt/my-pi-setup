@@ -35,15 +35,23 @@ import type {
   TranscriptPart,
 } from "../domain.ts";
 import { SendError, SpawnError } from "../domain.ts";
+import {
+  appendRoleSystemPrompts,
+  buildRoleSystemPrompts,
+  findMissingRoleTools,
+} from "../roles.ts";
 
 const CHILD_SHUTDOWN_TIMEOUT_MS = 5_000;
 const CHILD_TOOL_CALL_TIMEOUT_MS = 3 * 60 * 1_000;
 
 /** Tools that headless children must not receive. Everything else stays enabled. */
-const CHILD_EXCLUDED_TOOL_NAMES = [
+export const CHILD_EXCLUDED_TOOL_NAMES = [
   "subagent_spawn",
   "subagent_wait",
   "subagent_cancel",
+  "subagent_interrupt",
+  "subagent_send",
+  "subagent_close",
   "subagent_check",
   "subagent_list",
   "workflow",
@@ -96,12 +104,22 @@ function resolvePiModel(
 // --- Child session helpers (ported from v1 shared/child-session.ts) -----------
 
 /** Load normal global/package resources and trust-gated project resources. */
-async function createChildResources(cwd: string, projectTrusted: boolean) {
+async function createChildResources(
+  cwd: string,
+  projectTrusted: boolean,
+  appendSystemPrompt: ReadonlyArray<string>,
+) {
   const agentDir = getAgentDir();
   const settingsManager = SettingsManager.create(cwd, agentDir, {
     projectTrusted,
   });
-  const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
+  const loader = new DefaultResourceLoader({
+    cwd,
+    agentDir,
+    settingsManager,
+    appendSystemPromptOverride: (base) =>
+      appendRoleSystemPrompts(base, appendSystemPrompt),
+  });
   await loader.reload();
   return { loader, settingsManager };
 }
@@ -342,6 +360,7 @@ const makePiSession = (
         const { loader, settingsManager } = await createChildResources(
           task.cwd,
           task.parent.projectTrusted,
+          task.role ? buildRoleSystemPrompts(task.role) : [],
         );
         const { session } = await createAgentSession({
           cwd: task.cwd,
@@ -351,6 +370,7 @@ const makePiSession = (
           modelRegistry: registry,
           model,
           thinkingLevel,
+          tools: task.role ? [...task.role.tools] : undefined,
           excludeTools: [...CHILD_EXCLUDED_TOOL_NAMES],
         });
         // Start child extension session hooks/resources in headless mode.
@@ -358,6 +378,17 @@ const makePiSession = (
         // the scope finalizer that owns cleanup is only registered later.
         try {
           await session.bindExtensions({ mode: "print" });
+          if (task.role) {
+            const missing = findMissingRoleTools(
+              task.role.tools,
+              session.getAllTools().map(({ name }) => name),
+            );
+            if (missing.length > 0) {
+              throw new Error(
+                `Role "${task.role.name}" requests unavailable tool(s): ${missing.join(", ")}.`,
+              );
+            }
+          }
         } catch (error) {
           await shutdownAndDisposeChildSession(session);
           throw error;
@@ -585,7 +616,9 @@ const makePiSession = (
       send: (text) =>
         Effect.suspend((): Effect.Effect<void, SendError> => {
           if (state.closed) {
-            return new SendError({ message: "Subagent session is closed." });
+            return new SendError({
+              message: "Subagent session is closed.",
+            });
           }
           if (session.isStreaming) {
             // Steer the active run via the SDK's queue; queue_update events
@@ -617,7 +650,10 @@ const makePiSession = (
         // terminal event (once) so the run cannot look running forever.
         if (!state.closed && !state.settled) {
           state.settled = true;
-          emit({ _tag: "RunSettled", outcome: { _tag: "Interrupted" } });
+          emit({
+            _tag: "RunSettled",
+            outcome: { _tag: "Interrupted" },
+          });
         }
       }),
     } satisfies SubagentSession;
@@ -625,7 +661,11 @@ const makePiSession = (
 
 export const piBackend: SubagentBackend = {
   name: "pi",
-  capabilities: { steering: true, modelSelection: true, reasoningEffort: true },
+  capabilities: {
+    steering: true,
+    modelSelection: true,
+    reasoningEffort: true,
+  },
   // In-process SDK: always available.
   available: Effect.succeed(true),
   spawn: makePiSession,

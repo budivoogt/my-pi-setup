@@ -121,7 +121,11 @@ const makeStubSession = (
 
         const thinking = "Looking at the task and planning an approach...";
         for (const delta of chunked(thinking, 16)) {
-          yield* emit({ _tag: "AssistantDelta", kind: "thinking", delta });
+          yield* emit({
+            _tag: "AssistantDelta",
+            kind: "thinking",
+            delta,
+          });
           yield* pause;
         }
 
@@ -135,7 +139,12 @@ const makeStubSession = (
               type: "text",
               text: `I'll run ${profile.toolName} to look around first.`,
             },
-            { type: "toolCall", toolId, name: profile.toolName, argsPreview },
+            {
+              type: "toolCall",
+              toolId,
+              name: profile.toolName,
+              argsPreview,
+            },
           ],
         });
         yield* emit({

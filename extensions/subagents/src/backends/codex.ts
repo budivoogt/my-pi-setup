@@ -555,7 +555,10 @@ const makeCodexSession = (
       if (type === "agentMessage") {
         const text = stringValue(item.text) ?? "";
         if (text) {
-          emit({ _tag: "AssistantMessage", parts: [{ type: "text", text }] });
+          emit({
+            _tag: "AssistantMessage",
+            parts: [{ type: "text", text }],
+          });
           state.lastAssistantText = text;
           if (stringValue(item.phase) === "final_answer")
             state.finalText = text;
@@ -655,7 +658,12 @@ const makeCodexSession = (
         case "item/reasoning/summaryTextDelta":
         case "item/reasoning/textDelta": {
           const delta = stringValue(params.delta);
-          if (delta) emit({ _tag: "AssistantDelta", kind: "thinking", delta });
+          if (delta)
+            emit({
+              _tag: "AssistantDelta",
+              kind: "thinking",
+              delta,
+            });
           break;
         }
         case "item/started": {
@@ -689,7 +697,9 @@ const makeCodexSession = (
             emit({
               _tag: "ToolUpdate",
               toolId: id,
-              outputPreview: fileChangePreview({ changes: params.changes }),
+              outputPreview: fileChangePreview({
+                changes: params.changes,
+              }),
             });
           }
           break;
@@ -934,7 +944,9 @@ const makeCodexSession = (
       send: (text) =>
         Effect.suspend((): Effect.Effect<void, SendError> => {
           if (state.closed) {
-            return new SendError({ message: "Subagent session is closed." });
+            return new SendError({
+              message: "Subagent session is closed.",
+            });
           }
           if (state.activeRun) {
             state.pendingPrompts.push(text);

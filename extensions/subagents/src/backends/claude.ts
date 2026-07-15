@@ -520,7 +520,11 @@ const makeClaudeSession = (
           const delta = message.event.delta;
           if (delta.type === "text_delta") {
             state.liveText += delta.text;
-            emit({ _tag: "AssistantDelta", kind: "text", delta: delta.text });
+            emit({
+              _tag: "AssistantDelta",
+              kind: "text",
+              delta: delta.text,
+            });
           } else if (delta.type === "thinking_delta") {
             emit({
               _tag: "AssistantDelta",
@@ -551,7 +555,10 @@ const makeClaudeSession = (
           if (state.activeRun) {
             settle(
               state.interruptRequested
-                ? { _tag: "Interrupted", partialText: partialText() }
+                ? {
+                    _tag: "Interrupted",
+                    partialText: partialText(),
+                  }
                 : {
                     _tag: "Failed",
                     errorText:
@@ -637,11 +644,15 @@ const makeClaudeSession = (
       send: (text) =>
         Effect.suspend((): Effect.Effect<void, SendError> => {
           if (state.closed) {
-            return new SendError({ message: "Subagent session is closed." });
+            return new SendError({
+              message: "Subagent session is closed.",
+            });
           }
           return submit(text)
             ? Effect.void
-            : new SendError({ message: "Subagent session is closed." });
+            : new SendError({
+                message: "Subagent session is closed.",
+              });
         }),
       interrupt: Effect.promise(async () => {
         if (state.closed || !state.activeRun) return;
@@ -666,7 +677,10 @@ const makeClaudeSession = (
             }
           } catch (error) {
             if (!state.closed) {
-              emit({ _tag: "BackendError", message: boundedError(error) });
+              emit({
+                _tag: "BackendError",
+                message: boundedError(error),
+              });
             }
           }
           await waitForVersion(version);
@@ -692,7 +706,11 @@ const makeClaudeSession = (
 
 export const claudeBackend: SubagentBackend = {
   name: "claude",
-  capabilities: { steering: true, modelSelection: true, reasoningEffort: true },
+  capabilities: {
+    steering: true,
+    modelSelection: true,
+    reasoningEffort: true,
+  },
   available: Effect.sync(() => resolveClaudeBinary() !== undefined),
   spawn: makeClaudeSession,
 };

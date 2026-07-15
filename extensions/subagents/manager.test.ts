@@ -156,6 +156,24 @@ test("the concurrency cap rejects a fifth running subagent", async () => {
   });
 });
 
+test("simultaneous spawns reserve exactly four slots", async () => {
+  await withManager(async (manager, runtime) => {
+    const results = await Promise.allSettled(
+      [1, 2, 3, 4, 5].map((n) =>
+        runTool(runtime, manager.spawn("codex", task(`Concurrent ${n}`))),
+      ),
+    );
+    assert.equal(
+      results.filter((result) => result.status === "fulfilled").length,
+      4,
+    );
+    const [rejected] = results.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    assert.match(String(rejected.reason), /Max 4 subagents/);
+  });
+});
+
 test("pi spawn fails fast without the parent model registry", async () => {
   await withManager(async (manager, runtime) => {
     await assert.rejects(
@@ -204,13 +222,112 @@ test("send steers an idle subagent into another turn", async () => {
     assert.equal(afterFirst?.status, "done");
 
     await runTool(runtime, manager.send(snap.id, "Second turn"));
-    // The fresh run flips the status back to running...
-    while (manager.view.get(snap.id)?.status !== "running") {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
+    // Waiting immediately must observe the reserved restart before the
+    // RunStarted event has reached the manager pump.
     await runTool(runtime, manager.waitFor([snap.id]));
     const afterSecond = manager.view.get(snap.id);
     assert.equal(afterSecond?.status, "done");
     assert.match(afterSecond?.finalText ?? "", /Second turn/);
+  });
+});
+
+test("close interrupts a running child, removes it, and rejects later sends", async () => {
+  await withManager(async (manager, runtime) => {
+    const snap = await runTool(
+      runtime,
+      manager.spawn("codex", task("Keep running until closed")),
+    );
+    const closed = await runTool(runtime, manager.close(snap.id));
+    assert.deepEqual(closed, {
+      id: snap.id,
+      title: "test",
+      status: "error",
+      interrupted: true,
+      finalText: "",
+      errorText: "Run was aborted",
+    });
+    assert.equal(manager.view.get(snap.id), undefined);
+    await assert.rejects(
+      runTool(runtime, manager.send(snap.id, "too late")),
+      /no longer tracked/,
+    );
+    assert.equal(await runTool(runtime, manager.close(snap.id)), undefined);
+  });
+});
+
+test("close releases an idle persistent child without interrupting it", async () => {
+  await withManager(async (manager, runtime) => {
+    const withRole: SpawnTask = {
+      ...task("Finish, then close"),
+      role: {
+        name: "explorer",
+        developerInstructions: "Read only.",
+        tools: ["read"],
+      },
+    };
+    const snap = await runTool(runtime, manager.spawn("claude", withRole));
+    assert.equal(snap.role, "explorer");
+    await runTool(runtime, manager.waitFor([snap.id]));
+    const closed = await runTool(runtime, manager.close(snap.id));
+    assert.equal(closed?.interrupted, false);
+    assert.equal(closed?.status, "done");
+    assert.equal(manager.view.get(snap.id), undefined);
+  });
+});
+
+test("close serializes concurrent send and duplicate close operations", async () => {
+  await withManager(async (manager, runtime) => {
+    const snap = await runTool(
+      runtime,
+      manager.spawn("codex", task("Close race")),
+    );
+    const [closed, sent, duplicate] = await Promise.allSettled([
+      runTool(runtime, manager.close(snap.id)),
+      runTool(runtime, manager.send(snap.id, "must be rejected")),
+      runTool(runtime, manager.close(snap.id)),
+    ]);
+    assert.equal(closed.status, "fulfilled");
+    assert.equal(sent.status, "rejected");
+    if (sent.status === "rejected") {
+      assert.match(String(sent.reason), /closing/);
+    }
+    assert.deepEqual(duplicate, { status: "fulfilled", value: undefined });
+    assert.equal(manager.view.get(snap.id), undefined);
+  });
+});
+
+test("cancel serializes a concurrent send until interruption settles", async () => {
+  await withManager(async (manager, runtime) => {
+    const snap = await runTool(
+      runtime,
+      manager.spawn("claude", task("Cancel race")),
+    );
+    const [cancelled, sent] = await Promise.allSettled([
+      runTool(runtime, manager.cancel([snap.id])),
+      runTool(runtime, manager.send(snap.id, "must not restart yet")),
+    ]);
+    assert.equal(cancelled.status, "fulfilled");
+    assert.equal(sent.status, "rejected");
+    if (sent.status === "rejected") {
+      assert.match(String(sent.reason), /being interrupted/);
+    }
+    assert.equal(manager.view.get(snap.id)?.status, "error");
+  });
+});
+
+test("a concurrent wait captures the terminal snapshot before close removes it", async () => {
+  await withManager(async (manager, runtime) => {
+    const snap = await runTool(
+      runtime,
+      manager.spawn("codex", task("Wait and close")),
+    );
+    const [waited, closed] = await Promise.all([
+      runTool(runtime, manager.waitFor([snap.id])),
+      runTool(runtime, manager.close(snap.id)),
+    ]);
+    assert.equal(waited[0]?.id, snap.id);
+    assert.equal(waited[0]?.status, "error");
+    assert.equal(closed?.id, snap.id);
+    assert.equal(manager.view.get(snap.id), undefined);
   });
 });

@@ -55,6 +55,12 @@ export interface SpawnTask {
   readonly model?: string;
   /** Shared effort scale; each backend maps it to its native equivalent. */
   readonly reasoningEffort?: ReasoningEffort;
+  /** Durable child role resolved by the parent tool layer. */
+  readonly role?: {
+    readonly name: string;
+    readonly developerInstructions: string;
+    readonly tools: ReadonlyArray<string>;
+  };
   readonly parent: ParentContext;
 }
 
@@ -190,21 +196,30 @@ export interface SubagentSnapshot {
   readonly title: string;
   readonly prompt: string;
   readonly cwd: string;
+  readonly role?: string;
   readonly status: SubagentStatus;
   readonly createdAt: number;
   readonly settledAt?: number;
   readonly errorText?: string;
   readonly meta: SubagentMeta;
-  readonly usage: { readonly tokens?: number; readonly contextWindow?: number };
+  readonly usage: {
+    readonly tokens?: number;
+    readonly contextWindow?: number;
+  };
   readonly transcript: ReadonlyArray<TranscriptItem>;
   /** Streaming assistant buffers, cleared when the finalized message lands. */
-  readonly liveAssistant?: { readonly text: string; readonly thinking: string };
+  readonly liveAssistant?: {
+    readonly text: string;
+    readonly thinking: string;
+  };
   readonly liveTools: ReadonlyArray<LiveToolState>;
   readonly queued: ReadonlyArray<QueuedMessage>;
   /** Final text of the most recent completed run (v1 `finalOutput`). */
   readonly finalText: string;
   /** Count of finalized assistant messages (for subagent_check). */
   readonly turns: number;
+  /** Monotonic count of settled runs, used to key deferred deliveries. */
+  readonly runSequence: number;
 }
 
 /** Final text, or the live streaming buffer while a run is active (v1 `latestOutput`). */
