@@ -70,13 +70,14 @@ function renderAssistantItem(
   item: Extract<TranscriptItem, { kind: "assistant" }>,
   width: number,
   out: string[],
+  showThinking: boolean,
 ) {
   for (const part of item.parts) {
     if (part.type === "text") {
       const text = sanitizeText(part.text).trim();
       if (!text) continue;
       out.push(...wrapTextWithAnsi(text, width));
-    } else if (part.type === "thinking") {
+    } else if (part.type === "thinking" && showThinking) {
       renderThinking(
         theme,
         part.redacted ? "[redacted reasoning]" : part.text,
@@ -117,15 +118,17 @@ export function buildTranscriptLines(
   snap: SubagentSnapshot,
   width: number,
   theme: Theme,
+  options: { showThinking?: boolean } = {},
 ): string[] {
   const out: string[] = [];
+  const showThinking = options.showThinking === true;
 
   for (const item of snap.transcript) {
     const before = out.length;
     if (item.kind === "user") {
       renderUserText(theme, item.text, width, out);
     } else if (item.kind === "assistant") {
-      renderAssistantItem(theme, item, width, out);
+      renderAssistantItem(theme, item, width, out, showThinking);
     } else {
       renderToolResultItem(theme, item, width, out);
     }
@@ -138,7 +141,8 @@ export function buildTranscriptLines(
     const { thinking, text } = snap.liveAssistant;
     const before = out.length;
     if (out.length > 0) out.push("");
-    if (thinking.trim()) renderThinking(theme, thinking, width, out);
+    if (showThinking && thinking.trim())
+      renderThinking(theme, thinking, width, out);
     if (text.trim())
       out.push(...wrapTextWithAnsi(sanitizeText(text).trim(), width));
     if (out.length === before + 1) out.pop();

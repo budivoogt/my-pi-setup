@@ -364,6 +364,8 @@ class TakeoverView implements Component, Focusable {
   private done: (value: null) => void;
 
   private input = new Input();
+  /** Subagent reasoning is hidden by default to keep takeover views calm. */
+  private showThinking = false;
   /** Scroll offset in lines from the bottom of the transcript. 0 = pinned to bottom. */
   private scrollOffset = 0;
   private unsubscribe: () => void;
@@ -440,6 +442,12 @@ class TakeoverView implements Component, Focusable {
   }
 
   handleInput(data: string): void {
+    if (this.keybindings.matches(data, "app.thinking.toggle")) {
+      this.showThinking = !this.showThinking;
+      this.scrollOffset = 0;
+      this.tui.requestRender();
+      return;
+    }
     if (this.keybindings.matches(data, "app.clear")) {
       const snap = this.snap();
       if (snap?.status === "running") this.view.requestAbort(this.id);
@@ -515,7 +523,9 @@ class TakeoverView implements Component, Focusable {
 
     // Fixed-height transcript viewport. Error and scroll status consume rows
     // inside the viewport so streaming/scrolling never changes overlay height.
-    const transcript = buildTranscriptLines(snap, width, theme);
+    const transcript = buildTranscriptLines(snap, width, theme, {
+      showThinking: this.showThinking,
+    });
     const viewport = this.viewportHeight();
     const errorRows = snap.errorText ? 1 : 0;
     const scrollRows = this.scrollOffset > 0 ? 1 : 0;
@@ -556,7 +566,7 @@ class TakeoverView implements Component, Focusable {
       truncateToWidth(
         theme.fg(
           "dim",
-          `${configuredKeys(this.keybindings, "tui.input.submit")} send · ${configuredKeys(this.keybindings, "app.interrupt")} back · ${configuredKeys(this.keybindings, "app.clear")} abort run · ${configuredKeys(this.keybindings, "tui.editor.cursorUp")}/${configuredKeys(this.keybindings, "tui.editor.cursorDown")} scroll · ${configuredKeys(this.keybindings, "tui.editor.pageUp")}/${configuredKeys(this.keybindings, "tui.editor.pageDown")} page`,
+          `${configuredKeys(this.keybindings, "tui.input.submit")} send · ${configuredKeys(this.keybindings, "app.interrupt")} back · ${configuredKeys(this.keybindings, "app.clear")} abort run · ${configuredKeys(this.keybindings, "app.thinking.toggle")} reasoning · ${configuredKeys(this.keybindings, "tui.editor.cursorUp")}/${configuredKeys(this.keybindings, "tui.editor.cursorDown")} scroll · ${configuredKeys(this.keybindings, "tui.editor.pageUp")}/${configuredKeys(this.keybindings, "tui.editor.pageDown")} page`,
         ),
         width,
       ),

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Hide subagent takeover reasoning by default while preserving `Ctrl+T` as an
+  on-demand visibility toggle; tool results remain concise one-line previews.
 - Add pinned Claude role mappings through the Pi extension, including Sonnet 5
   low adaptive effort for explorer and an exact approved-model allowlist.
 - Add persistent Pi subagent roles with durable instructions, tool allowlists,

@@ -17,6 +17,10 @@ Results that finish while the parent is busy are queued and delivered when the
 parent becomes idle. An explicit wait marks its selected results as consumed,
 preventing duplicate automatic delivery.
 
+The `/subagents` takeover view hides child reasoning by default and keeps tool
+results to one-line previews. `Ctrl+T` toggles reasoning visibility without
+changing the child's configured effort or model.
+
 ## Architecture
 
 `extensions/subagents/src/backend.ts` defines the common persistent-session
