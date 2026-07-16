@@ -15,6 +15,8 @@ export interface RoleProfile {
   readonly tools: ReadonlyArray<string>;
   readonly model?: string;
   readonly reasoningEffort?: ReasoningEffort;
+  readonly claudeModel?: string;
+  readonly claudeReasoningEffort?: ReasoningEffort;
   readonly allowOutsideParentCwd: boolean;
   readonly sourcePath: string;
 }
@@ -75,6 +77,17 @@ export function parseRoleProfile(source: string, sourcePath: string) {
     );
   }
 
+  const claudeEffort = optionalString(
+    value.claude_reasoning_effort,
+    "claude_reasoning_effort",
+    sourcePath,
+  );
+  if (claudeEffort !== undefined && !reasoningEfforts.has(claudeEffort)) {
+    throw new Error(
+      `${sourcePath}: "claude_reasoning_effort" must be one of ${REASONING_EFFORTS.join(", ")}.`,
+    );
+  }
+
   const allowOutside = value.allow_outside_parent_cwd;
   if (allowOutside !== undefined && typeof allowOutside !== "boolean") {
     throw new Error(
@@ -93,9 +106,30 @@ export function parseRoleProfile(source: string, sourcePath: string) {
     tools: stringArray(value.tools, "tools", sourcePath),
     model: optionalString(value.model, "model", sourcePath),
     reasoningEffort: effort as ReasoningEffort | undefined,
+    claudeModel: optionalString(value.claude_model, "claude_model", sourcePath),
+    claudeReasoningEffort: claudeEffort as ReasoningEffort | undefined,
     allowOutsideParentCwd: allowOutside === true,
     sourcePath,
   } satisfies RoleProfile;
+}
+
+export function roleDefaultsForHarness(
+  profile: RoleProfile,
+  harness: "pi" | "claude" | "codex",
+) {
+  if (harness === "pi") {
+    return {
+      model: profile.model,
+      reasoningEffort: profile.reasoningEffort,
+    };
+  }
+  if (harness === "claude") {
+    return {
+      model: profile.claudeModel,
+      reasoningEffort: profile.claudeReasoningEffort,
+    };
+  }
+  return {};
 }
 
 function loadRoleDirectory(rolesDir: string) {

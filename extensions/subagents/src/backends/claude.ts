@@ -33,10 +33,21 @@ import type {
   TranscriptPart,
 } from "../domain.ts";
 import { SendError, SpawnError } from "../domain.ts";
+import { buildRoleSystemPrompts } from "../roles.ts";
 
 const CLAUDE_CONTEXT_WINDOW = 200_000;
 const INTERRUPT_TIMEOUT_MS = 2_000;
 const PREVIEW_MAX_LENGTH = 4_096;
+
+export const ALLOWED_CLAUDE_MODELS = [
+  "claude-haiku-4-5",
+  "claude-sonnet-5",
+  "claude-opus-4-8",
+  "claude-fable-5",
+] as const;
+
+const DEFAULT_CLAUDE_MODEL = "claude-fable-5";
+const allowedClaudeModels = new Set<string>(ALLOWED_CLAUDE_MODELS);
 
 // --- Binary resolution --------------------------------------------------------
 
@@ -137,12 +148,6 @@ class ClaudeInput implements AsyncIterable<SDKUserMessage> {
 
 // --- Model, effort, and transcript helpers ----------------------------------
 
-/**
- * Claude's deprecated-but-supported maxThinkingTokens is the closest match to
- * the shared numeric scale requested by this extension. Zero explicitly
- * disables extended thinking in SDK 0.3.207; an omitted effort leaves the CLI
- * default untouched.
- */
 const THINKING_BUDGETS = {
   off: 0,
   minimal: 1_024,
@@ -152,6 +157,61 @@ const THINKING_BUDGETS = {
   xhigh: 32_000,
   max: 63_999,
 } satisfies Record<ReasoningEffort, number>;
+
+const CLAUDE_ROLE_TOOL_NAMES = {
+  read: "Read",
+  grep: "Grep",
+  find: "Glob",
+  ls: "Glob",
+  bash: "Bash",
+  edit: "Edit",
+  write: "Write",
+} as const;
+
+export function resolveClaudeModel(model: string | undefined) {
+  const resolved = model ?? DEFAULT_CLAUDE_MODEL;
+  if (!allowedClaudeModels.has(resolved)) {
+    throw new Error(
+      `Unsupported Claude model "${resolved}". Allowed models: ${ALLOWED_CLAUDE_MODELS.join(", ")}.`,
+    );
+  }
+  return resolved;
+}
+
+/** Map shared effort to Claude's current native controls. */
+export function claudeReasoningOptions(
+  model: string,
+  effort: ReasoningEffort | undefined,
+) {
+  if (effort === undefined) return {};
+  if (effort === "off") {
+    return { thinking: { type: "disabled" as const } };
+  }
+  if (model === "claude-haiku-4-5") {
+    return {
+      thinking: {
+        type: "enabled" as const,
+        budgetTokens: THINKING_BUDGETS[effort],
+      },
+    };
+  }
+  return {
+    thinking: { type: "adaptive" as const },
+    effort: effort === "minimal" ? ("low" as const) : effort,
+  };
+}
+
+export function claudeToolsForRole(tools: ReadonlyArray<string>) {
+  const resolved = tools.map((tool) => {
+    const claudeTool =
+      CLAUDE_ROLE_TOOL_NAMES[tool as keyof typeof CLAUDE_ROLE_TOOL_NAMES];
+    if (!claudeTool) {
+      throw new Error(`Claude role requests unsupported tool "${tool}".`);
+    }
+    return claudeTool;
+  });
+  return [...new Set(resolved)];
+}
 
 function boundedError(error: unknown) {
   return (error instanceof Error ? error.message : String(error)).slice(
@@ -288,6 +348,14 @@ const makeClaudeSession = (
   task: SpawnTask,
 ): Effect.Effect<SubagentSession, SpawnError, Scope.Scope> =>
   Effect.gen(function* () {
+    const model = yield* Effect.try({
+      try: () => resolveClaudeModel(task.model),
+      catch: (error) => new SpawnError({ message: boundedError(error) }),
+    });
+    const roleTools = yield* Effect.try({
+      try: () => (task.role ? claudeToolsForRole(task.role.tools) : undefined),
+      catch: (error) => new SpawnError({ message: boundedError(error) }),
+    });
     const input = new ClaudeInput();
     const abortController = new AbortController();
     const events = yield* Queue.make<SubagentEvent, Cause.Done>();
@@ -310,16 +378,17 @@ const makeClaudeSession = (
       settleWaiters: new Set<() => void>(),
       meta: {
         backend: "claude",
-        modelLabel: task.model,
+        modelLabel: model,
         // Claude models used by this backend currently expose 200k context;
         // result.modelUsage replaces this fallback when the CLI knows better.
         contextWindow: CLAUDE_CONTEXT_WINDOW,
       } satisfies SubagentMeta as SubagentMeta,
     };
 
-    const thinkingBudget = task.reasoningEffort
-      ? THINKING_BUDGETS[task.reasoningEffort]
-      : undefined;
+    const reasoningOptions = claudeReasoningOptions(
+      model,
+      task.reasoningEffort,
+    );
     const claudeBinary = resolveClaudeBinary();
     const nativeQuery = yield* Effect.try({
       try: () =>
@@ -342,10 +411,19 @@ const makeClaudeSession = (
             ...(claudeBinary
               ? { pathToClaudeCodeExecutable: claudeBinary }
               : {}),
-            ...(task.model ? { model: task.model } : {}),
-            ...(thinkingBudget !== undefined
-              ? { maxThinkingTokens: thinkingBudget }
+            model,
+            ...reasoningOptions,
+            ...(roleTools ? { tools: roleTools } : {}),
+            ...(task.role
+              ? {
+                  systemPrompt: {
+                    type: "preset" as const,
+                    preset: "claude_code" as const,
+                    append: buildRoleSystemPrompts(task.role).join("\n\n"),
+                  },
+                }
               : {}),
+            disallowedTools: ["Agent", "AskUserQuestion"],
           },
         }),
       catch: (error) => new SpawnError({ message: boundedError(error) }),

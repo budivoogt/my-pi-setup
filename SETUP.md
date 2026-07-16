@@ -28,16 +28,24 @@ developer_instructions = "Locate evidence with file paths. Do not edit."
 tools = ["read", "grep", "find", "ls"]
 model = "openai-codex/gpt-5.3-codex-spark"
 reasoning_effort = "high"
+claude_model = "claude-sonnet-5"
+claude_reasoning_effort = "low"
 ```
 
-Optional keys are `model`, `reasoning_effort`, and
-`allow_outside_parent_cwd`. Keep the last option false unless cross-repository
-work is intentional. Pi spawn arguments override a role's model and reasoning
-defaults.
+Optional keys are `model`, `reasoning_effort`, `claude_model`,
+`claude_reasoning_effort`, and `allow_outside_parent_cwd`. Keep the last option
+false unless cross-repository work is intentional. Spawn arguments override a
+role's model and reasoning defaults.
 
 The packaged models mirror the local Codex CLI roles: Spark/high for explorer,
 Luna/medium for editor, Terra/high for worker, Sol/xhigh for reviewer, and
 Luna/low for monitor. Explicit spawn arguments still take precedence.
+
+For the Claude harness, the packaged mapping is Haiku 4.5/off for monitor,
+Sonnet 5/low for explorer, Sonnet 5/medium for editor, Opus 4.8/high for worker,
+and Fable 5/high for reviewer. Claude Code must already be installed and signed
+in. The extension accepts only those four exact Claude model IDs, avoiding local
+alias overrides.
 
 ## Full setup development
 

@@ -4,3 +4,5 @@ developer_instructions = "Implement the bounded task, keep changes within scope,
 tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
 model = "openai-codex/gpt-5.6-terra"
 reasoning_effort = "high"
+claude_model = "claude-opus-4-8"
+claude_reasoning_effort = "high"

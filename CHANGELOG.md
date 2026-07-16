@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add pinned Claude role mappings through the Pi extension, including Sonnet 5
+  low adaptive effort for explorer and an exact approved-model allowlist.
 - Add persistent Pi subagent roles with durable instructions, tool allowlists,
   model/thinking defaults, and parent-directory confinement.
 - Add model-facing send, interrupt, and close lifecycle tools.

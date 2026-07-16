@@ -49,7 +49,7 @@ export interface SpawnTask {
   readonly cwd: string;
   /**
    * Generic model hint, interpreted per backend:
-   * pi: "provider/model-id" or bare model id; claude: model alias;
+   * pi: "provider/model-id" or bare model id; claude: exact approved model id;
    * codex: model slug. Omitted = backend default / inherit.
    */
   readonly model?: string;

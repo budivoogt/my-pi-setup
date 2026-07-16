@@ -77,6 +77,7 @@ import {
   assertRoleWorkingDirectory,
   loadRoleProfiles,
   resolveRoleProfile,
+  roleDefaultsForHarness,
   roleForSpawn,
 } from "./src/roles.ts";
 import {
@@ -279,15 +280,18 @@ export default function (pi: ExtensionAPI) {
 
       const profiles = loadRoleProfiles(getAgentDir());
       const requestedRole = params.role?.trim();
-      if (requestedRole && harness !== "pi") {
+      if (requestedRole && harness === "codex") {
         throw new Error(
-          `Role profiles currently apply only to the pi harness, not "${harness}".`,
+          `Role profiles currently apply to the pi and claude harnesses, not "${harness}".`,
         );
       }
       const role =
-        harness === "pi"
+        harness === "pi" || harness === "claude"
           ? resolveRoleProfile(profiles, requestedRole || "worker")
           : undefined;
+      const roleDefaults = role
+        ? roleDefaultsForHarness(role, harness)
+        : undefined;
 
       const requestedCwd = path.resolve(ctx.cwd, params.working_dir ?? ".");
       if (
@@ -307,8 +311,9 @@ export default function (pi: ExtensionAPI) {
           prompt: params.prompt,
           title,
           cwd,
-          model: params.model ?? role?.model,
-          reasoningEffort: params.reasoning_effort ?? role?.reasoningEffort,
+          model: params.model ?? roleDefaults?.model,
+          reasoningEffort:
+            params.reasoning_effort ?? roleDefaults?.reasoningEffort,
           role: role ? roleForSpawn(role) : undefined,
           parent: {
             parentCwd: ctx.cwd,

@@ -19,6 +19,7 @@ import {
   loadRoleProfiles,
   parseRoleProfile,
   resolveRoleProfile,
+  roleDefaultsForHarness,
   roleForSpawn,
 } from "./src/roles.ts";
 
@@ -28,12 +29,16 @@ description = "Read-only repository exploration"
 developer_instructions = "Locate evidence and do not edit files."
 tools = ["read", "grep", "find", "ls", "read"]
 reasoning_effort = "high"
+claude_model = "claude-sonnet-5"
+claude_reasoning_effort = "low"
 `;
 
 test("parses and normalizes a role profile", () => {
   const role = parseRoleProfile(validRole, "/roles/explorer.toml");
   assert.equal(role.name, "explorer");
   assert.equal(role.reasoningEffort, "high");
+  assert.equal(role.claudeModel, "claude-sonnet-5");
+  assert.equal(role.claudeReasoningEffort, "low");
   assert.deepEqual(role.tools, ["read", "grep", "find", "ls"]);
   assert.equal(role.allowOutsideParentCwd, false);
   assert.match(
@@ -58,6 +63,17 @@ test("rejects malformed and invalid role profiles with their source path", () =>
       ),
     /reasoning_effort.*must be one of/,
   );
+  assert.throws(
+    () =>
+      parseRoleProfile(
+        validRole.replace(
+          'claude_reasoning_effort = "low"',
+          'claude_reasoning_effort = "huge"',
+        ),
+        "/roles/explorer.toml",
+      ),
+    /claude_reasoning_effort.*must be one of/,
+  );
 });
 
 test("loads sorted roles and rejects duplicate role names", () => {
@@ -81,7 +97,7 @@ test("loads sorted roles and rejects duplicate role names", () => {
   );
 });
 
-test("loads Codex-mapped bundled roles and applies whole user overrides by name", () => {
+test("loads harness-mapped bundled roles and applies whole user overrides by name", () => {
   const agentDir = fs.mkdtempSync(
     path.join(os.tmpdir(), "subagent-overrides-"),
   );
@@ -99,26 +115,41 @@ test("loads Codex-mapped bundled roles and applies whole user overrides by name"
     ["editor", "explorer", "monitor", "reviewer", "worker", "custom"],
   );
   assert.equal(roles.get("explorer")?.model, undefined);
+  assert.equal(roles.get("explorer")?.claudeModel, "claude-sonnet-5");
   assert.equal(roles.get("custom")?.name, "custom");
 
   const expectedDefaults = {
-    editor: ["openai-codex/gpt-5.6-luna", "medium"],
-    monitor: ["openai-codex/gpt-5.6-luna", "low"],
-    reviewer: ["openai-codex/gpt-5.6-sol", "xhigh"],
-    worker: ["openai-codex/gpt-5.6-terra", "high"],
+    editor: [
+      "openai-codex/gpt-5.6-luna",
+      "medium",
+      "claude-sonnet-5",
+      "medium",
+    ],
+    monitor: ["openai-codex/gpt-5.6-luna", "low", "claude-haiku-4-5", "off"],
+    reviewer: ["openai-codex/gpt-5.6-sol", "xhigh", "claude-fable-5", "high"],
+    worker: ["openai-codex/gpt-5.6-terra", "high", "claude-opus-4-8", "high"],
   } as const;
-  for (const [name, [model, effort]] of Object.entries(expectedDefaults)) {
+  for (const [
+    name,
+    [model, effort, claudeModel, claudeEffort],
+  ] of Object.entries(expectedDefaults)) {
     assert.equal(roles.get(name)?.model, model);
     assert.equal(roles.get(name)?.reasoningEffort, effort);
+    assert.equal(roles.get(name)?.claudeModel, claudeModel);
+    assert.equal(roles.get(name)?.claudeReasoningEffort, claudeEffort);
   }
   assert.ok(fs.existsSync(path.join(BUNDLED_ROLES_DIR, "worker.toml")));
 });
 
-test("bundled explorer keeps the Codex Spark mapping without an override", () => {
+test("bundled explorer maps Pi to Spark and Claude to Sonnet 5 low", () => {
   const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-defaults-"));
   const explorer = loadRoleProfiles(agentDir).get("explorer");
   assert.equal(explorer?.model, "openai-codex/gpt-5.3-codex-spark");
   assert.equal(explorer?.reasoningEffort, "high");
+  assert.deepEqual(roleDefaultsForHarness(explorer!, "claude"), {
+    model: "claude-sonnet-5",
+    reasoningEffort: "low",
+  });
   assert.deepEqual(explorer?.tools, ["read", "grep", "find", "ls"]);
 });
 

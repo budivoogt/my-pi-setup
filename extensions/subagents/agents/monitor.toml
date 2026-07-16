@@ -4,3 +4,5 @@ developer_instructions = "Run or monitor only the requested command or process. 
 tools = ["read", "bash"]
 model = "openai-codex/gpt-5.6-luna"
 reasoning_effort = "low"
+claude_model = "claude-haiku-4-5"
+claude_reasoning_effort = "off"

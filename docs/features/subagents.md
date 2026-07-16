@@ -32,22 +32,30 @@ id. This ordering avoids reporting a closed child as still running.
 
 ## Roles
 
-Pi role defaults are bundled under `extensions/subagents/agents/`. User TOML
+Role defaults are bundled under `extensions/subagents/agents/`. User TOML
 files under `~/.pi/agent/agents/` override bundled profiles by role name. Each
 profile requires `name`, `description`, `developer_instructions`, and a
-non-empty `tools` array. Optional fields are `model`, `reasoning_effort`, and
-`allow_outside_parent_cwd`.
+non-empty `tools` array. Optional fields are `model`, `reasoning_effort`,
+`claude_model`, `claude_reasoning_effort`, and `allow_outside_parent_cwd`.
 
-The tool layer resolves the role before spawn. User-supplied model and effort
-values override role defaults. The role's instructions are appended to Pi's
-system prompt, and its tools are passed to `createAgentSession` as an allowlist.
-The backend denylist is applied afterward and always removes orchestration,
-workflow, and user-question tools.
+The tool layer resolves roles for Pi and Claude before spawn. User-supplied
+model and effort values override the selected harness defaults. For Pi, role
+instructions extend the child system prompt and role tools are passed to
+`createAgentSession`. For Claude, the same instructions extend the Claude Code
+preset and Pi tool names are mapped to a strict Claude built-in allowlist.
+Backend denylists remove child orchestration and user-question tools.
 
 Bundled models intentionally mirror this setup's Codex CLI roles and fail fast
 when a configured provider/model is unavailable. The eight-agent cap is global
 across Pi, Claude, and Codex backends; it approximates Codex's thread setting
 rather than creating eight isolated operating-system sandboxes.
+
+Claude role defaults use exact IDs: `claude-haiku-4-5`/off for monitor,
+`claude-sonnet-5`/low for explorer, `claude-sonnet-5`/medium for editor,
+`claude-opus-4-8`/high for worker, and `claude-fable-5`/high for reviewer. These
+are the only Claude models accepted by the backend. Modern models use adaptive
+thinking plus the SDK's native effort control; Haiku uses fixed thinking only
+when explicitly enabled.
 
 Requested child directories are resolved through the filesystem before the cwd
 boundary check, so a symlink cannot silently change the child's initial cwd to

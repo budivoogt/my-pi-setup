@@ -11,7 +11,7 @@ export const SUBAGENT_SPAWN_PROMPT_SNIPPET =
 /** Guides the parent model to delegate standalone tasks and avoid unnecessary blocking waits. */
 export const SUBAGENT_SPAWN_PROMPT_GUIDELINES = [
   "Use subagent_spawn to delegate self-contained tasks that can run in the background; give it a complete, standalone prompt.",
-  "For pi children, select the narrowest role that fits: explorer/reviewer for read-only work, editor for localized edits, worker for implementation, monitor for long commands.",
+  "For pi and Claude children, select the narrowest role that fits: explorer/reviewer for read-only work, editor for localized edits, worker for implementation, monitor for long commands.",
   "Pick the subagent harness deliberately: pi unless you have a reason to prefer Claude Code or Codex (e.g. the user asked for one, or the task suits that harness).",
   "After subagent_spawn, keep working; results arrive automatically. Only call subagent_wait when you cannot proceed without the result.",
 ];
@@ -21,13 +21,13 @@ export const SUBAGENT_SPAWN_PARAMETER_DESCRIPTIONS = {
   prompt:
     "Task prompt for the subagent. Must be self-contained: include all needed context, file paths, and what to report back.",
   name: "Short human-readable name for this subagent, shown in listings and the UI",
-  role: 'Pi role profile from bundled defaults or ~/.pi/agent/agents/*.toml overrides. Defaults to "worker" for pi. Roles are not applied to Claude/Codex backends.',
+  role: 'Role profile from bundled defaults or ~/.pi/agent/agents/*.toml overrides. Defaults to "worker" for pi and Claude. Roles are not applied to the Codex backend.',
   harness:
     'Harness to run the subagent on: "pi" (in-process pi session; inherits this environment), "claude" (Claude Code), or "codex" (Codex CLI). Choose deliberately per task.',
   workingDir:
-    "Initial working directory (default: current working directory). Pi role profiles restrict this initial cwd, not absolute paths used by later tools.",
+    "Initial working directory (default: current working directory). Pi and Claude role profiles restrict this initial cwd, not absolute paths used by later tools.",
   model:
-    'Model hint, interpreted by the chosen harness (pi: "provider/model-id" or model id; claude: model alias like "sonnet"/"opus"; codex: model slug). Omit for the harness default (pi inherits the current model).',
+    'Model hint, interpreted by the chosen harness (pi: "provider/model-id" or model id; claude: an approved exact model id; codex: model slug). Omit for the role/backend default (pi otherwise inherits the current model).',
   reasoningEffort:
     "Reasoning effort on a shared scale; the harness maps it to its nearest native equivalent (pi thinking level, codex reasoning effort, claude thinking budget). Omit for the harness default (pi inherits the current level).",
 };

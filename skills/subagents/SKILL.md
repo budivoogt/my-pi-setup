@@ -30,7 +30,7 @@ Pi can use any model shown by `pi --list-models`. Prefer `provider/model-id`; a 
 
 **Thinking budgets:** `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. These map directly to pi thinking levels.
 
-### Pi roles
+### Roles
 
 Select the narrowest role that fits. Omit `role` to use `worker`.
 
@@ -42,22 +42,32 @@ Select the narrowest role that fits. Omit `role` to use `worker`.
 
 Default role profiles are bundled with the extension. Files in
 `~/.pi/agent/agents/*.toml` override them by role name. Roles add durable system
-instructions and an exact tool allowlist. They apply only to the Pi harness. By
-default, a role cannot set `working_dir` outside the parent's current directory.
+instructions and an exact tool allowlist. They apply to Pi and Claude harnesses.
+By default, a role cannot set `working_dir` outside the parent's current
+directory.
 
 ## Claude Code Harness
 
 **Harness:** `claude`
 **Prompt nicknames:** “claude”, “Claude Code”, “claude agent”, “claude subagent”, "cc"
-**Best default:** use the latest fable model on high reasoning. Do not default to anything else, if the user does not specify, use fable.
+**Best default:** choose a role and use its pinned model and effort. Omit the role
+only when there is a specific reason to override the mapping.
 
-| Model hint | Model               | Recommended effort |
-| ---------- | ------------------- | ------------------ |
-| `fable`    | latest Claude Fable | `high`             |
+| Role       | Exact model ID        | Effort   |
+| ---------- | --------------------- | -------- |
+| `monitor`  | `claude-haiku-4-5`    | `off`    |
+| `explorer` | `claude-sonnet-5`     | `low`    |
+| `editor`   | `claude-sonnet-5`     | `medium` |
+| `worker`   | `claude-opus-4-8`     | `high`   |
+| `reviewer` | `claude-fable-5`      | `high`   |
 
-**Thinking budgets:** `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. The extension maps these to Claude thinking-token budgets: 0, 1,024, 4,096, 10,000, 16,000, 32,000, and 63,999 tokens respectively.
+Only those four exact Claude model IDs are accepted. Do not use aliases such as
+`haiku` or `sonnet`; local Claude settings can redirect aliases. Sonnet, Opus,
+and Fable use adaptive thinking with the SDK's native effort level. Haiku uses
+fixed thinking budgets only when reasoning is explicitly enabled.
 
-Requires Claude Code to be installed and authenticated.
+Requires Claude Code to be installed and authenticated. It uses the existing
+Claude Code login and does not require changes to Claude's configuration.
 
 ## Codex Harness
 

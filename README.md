@@ -33,9 +33,16 @@ Unawaited results are delivered automatically when the parent becomes idle.
 Pi children use bundled role profiles from
 [`extensions/subagents/agents/`](extensions/subagents/agents/). The included
 roles are `explorer`, `reviewer`, `editor`, `worker`, and `monitor`. A role
-supplies durable system instructions, Codex-mapped model/thinking defaults, and
-an exact Pi tool allowlist. Omitting the role for a Pi child selects `worker`.
+supplies durable system instructions, harness-specific model/thinking defaults,
+and an exact tool allowlist. Omitting the role for a Pi or Claude child selects
+`worker`.
 Files in `~/.pi/agent/agents/*.toml` override bundled roles by role name.
+
+Claude roles use exact model IDs through the Claude Agent SDK and the installed
+Claude Code login: Haiku 4.5/off for monitor, Sonnet 5/low for explorer,
+Sonnet 5/medium for editor, Opus 4.8/high for worker, and Fable 5/high for
+reviewer. The Sonnet 5 levels use native adaptive effort rather than legacy
+fixed thinking-token budgets.
 
 The parent enforces an eight-child concurrency cap and Pi children cannot spawn
 more children. Role-based checks restrict the child's initial working directory

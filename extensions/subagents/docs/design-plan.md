@@ -175,7 +175,7 @@ interface SpawnTask {
   title: string;
   cwd: string;
   // Generic model hint; each backend interprets/validates it its own way.
-  model?: string;            // pi: "provider/model-id"; claude: model alias; codex: model slug
+  model?: string;            // pi: "provider/model-id"; claude: exact approved id; codex: model slug
   reasoningEffort?: string;  // pi thinking level; codex reasoning effort; claude: ignored/mapped
   parentContext: {           // resolved by the tool layer, passed opaquely
     parentCwd: string;
