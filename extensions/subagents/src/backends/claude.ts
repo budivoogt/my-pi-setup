@@ -698,7 +698,7 @@ const makeClaudeSession = (
         });
         emit({ _tag: "QueueChanged", queued: queuedView() });
       }
-      return true;
+      return wasActive ? ("queued" as const) : ("started" as const);
     };
 
     const waitForVersion = (version: number) => {
@@ -720,25 +720,32 @@ const makeClaudeSession = (
       meta: Effect.sync(() => state.meta),
       events: Stream.fromQueue(events),
       send: (text) =>
-        Effect.suspend((): Effect.Effect<void, SendError> => {
+        Effect.suspend(() => {
           if (state.closed) {
             return new SendError({
               message: "Subagent session is closed.",
             });
           }
-          return submit(text)
-            ? Effect.void
-            : new SendError({
-                message: "Subagent session is closed.",
-              });
+          const disposition = submit(text);
+          return disposition
+            ? Effect.succeed(disposition)
+            : new SendError({ message: "Subagent session is closed." });
         }),
+      synchronize: Effect.callback<boolean>((resume) => {
+        const accepted = Queue.offerUnsafe(events, {
+          _tag: "Synchronized",
+          resume: () => resume(Effect.succeed(true)),
+        });
+        if (!accepted) resume(Effect.succeed(false));
+      }),
       interrupt: Effect.promise(async () => {
-        if (state.closed || !state.activeRun) return;
-        const version = state.runVersion;
+        if (state.closed) return;
         state.interruptRequested = true;
         input.clear();
         state.queued = [];
         emit({ _tag: "QueueChanged", queued: [] });
+        if (!state.activeRun) return;
+        const version = state.runVersion;
 
         const interruptAndSettle = (async () => {
           try {

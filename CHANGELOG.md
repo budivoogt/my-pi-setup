@@ -11,6 +11,10 @@
 - Add model-facing send, interrupt, and close lifecycle tools.
 - Add race-safe close handling, simultaneous concurrency tests, and child
   orchestration denylist coverage.
+- Make waits include follow-up turns queued on active Claude/Codex children and
+  keep close bounded when another wait also tracks unrelated children; use a
+  FIFO event barrier and backend-authoritative send disposition so buffered
+  lifecycle state cannot expose an earlier turn.
 - Make deferred completion consumption generation-aware so waiting for a later
   turn cannot discard an earlier queued result.
 - Make the nested subagents package install from the root npm workspace.

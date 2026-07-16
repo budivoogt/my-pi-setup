@@ -19,6 +19,7 @@ The feature is observable through Pi's model-facing subagent tools and `/subagen
 - [x] (2026-07-15 16:35Z) Updated installation, configuration, provenance, licensing, and safety documentation.
 - [x] (2026-07-15 17:28Z) Passed formatting, type checks, 119 offline tests, 34 focused subagent tests, an independent race probe, and a live Pi parent-to-child lifecycle smoke test.
 - [x] (2026-07-15 18:20Z) Added a selective Pi package manifest, bundled role defaults with user overrides, Codex-mapped role models, and eight-thread parity for the local Pi installation flow.
+- [x] (2026-07-16 16:15Z) Hardened queued-follow-up waiting, interrupt synchronization, missing-id waits, and bounded close behavior after independent review; passed formatting, type checks, 131 offline tests, and 46 focused subagent tests.
 
 ## Surprises & Discoveries
 
@@ -68,7 +69,7 @@ The feature is observable through Pi's model-facing subagent tools and `/subagen
 
 ## Outcomes & Retrospective
 
-The milestone is complete. Pi now has a persistent Codex-style child lifecycle, standalone role contracts, fail-closed role loading, exact child tool validation, bounded concurrency, serialized lifecycle transitions, and generation-aware deferred delivery. The full offline test suite passes 119/119 and focused subagent tests pass 34/34. A real Pi run spawned an `explorer`, read the pinned Pi dependency from `package.json` in a child session, waited, closed the child, and returned `0.80.7` successfully.
+The milestone is complete. Pi now has a persistent Codex-style child lifecycle, standalone role contracts, fail-closed role loading, exact child tool validation, bounded concurrency, serialized lifecycle transitions, and generation-aware deferred delivery. The full offline test suite passes 131/131 and focused subagent tests pass 46/46. A real Pi run spawned an `explorer`, read the pinned Pi dependency from `package.json` in a child session, waited, closed the child, and returned `0.80.7` successfully.
 
 The first milestone deliberately does not claim operating-system isolation. Tool allowlists and initial-cwd checks narrow intended capability, but Pi children run in-process with the parent's filesystem and environment permissions. A process-isolated RPC backend remains a possible follow-up after provider and environment propagation are designed explicitly.
 

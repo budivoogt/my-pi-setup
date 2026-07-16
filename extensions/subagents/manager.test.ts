@@ -236,6 +236,48 @@ test("send steers an idle subagent into another turn", async () => {
   });
 });
 
+test("wait after an active send includes the queued follow-up turn", async () => {
+  await withManager(async (manager, runtime) => {
+    const snap = await runTool(
+      runtime,
+      manager.spawn("claude", task("First active turn")),
+    );
+    // Send immediately: the initial RunStarted event may still be buffered in
+    // the manager pump even though the backend has accepted a queued turn.
+    await runTool(runtime, manager.send(snap.id, "Queued follow-up"));
+    const [waited] = await runTool(runtime, manager.waitFor([snap.id]));
+
+    assert.equal(waited?.status, "done");
+    assert.match(waited?.finalText ?? "", /Queued follow-up/);
+    assert.equal(waited?.runSequence, 2);
+  });
+});
+
+test("wait treats missing and already-closed ids as complete", async () => {
+  await withManager(async (manager, runtime) => {
+    assert.deepEqual(
+      await runTool(
+        runtime,
+        manager.waitFor(["missing"]).pipe(Effect.timeout(1_000)),
+      ),
+      [],
+    );
+
+    const snap = await runTool(
+      runtime,
+      manager.spawn("claude", task("Close before waiting")),
+    );
+    await runTool(runtime, manager.close(snap.id));
+    assert.deepEqual(
+      await runTool(
+        runtime,
+        manager.waitFor([snap.id]).pipe(Effect.timeout(1_000)),
+      ),
+      [],
+    );
+  });
+});
+
 test("close interrupts a running child, removes it, and rejects later sends", async () => {
   await withManager(async (manager, runtime) => {
     const snap = await runTool(
@@ -320,6 +362,24 @@ test("cancel serializes a concurrent send until interruption settles", async () 
   });
 });
 
+test("cancel waits until buffered queued-turn lifecycle events are folded", async () => {
+  await withManager(async (manager, runtime) => {
+    const snap = await runTool(
+      runtime,
+      manager.spawn("claude", task("Cancel buffered lifecycle")),
+    );
+    await runTool(runtime, manager.send(snap.id, "Queued before cancel"));
+    const waiting = runTool(runtime, manager.waitFor([snap.id]));
+
+    await runTool(runtime, manager.cancel([snap.id]));
+    const [waited] = await waiting;
+
+    assert.equal(waited?.status, "error");
+    assert.equal(waited?.errorText, "Run was aborted");
+    assert.equal(manager.view.get(snap.id)?.status, "error");
+  });
+});
+
 test("a concurrent wait captures the terminal snapshot before close removes it", async () => {
   await withManager(async (manager, runtime) => {
     const snap = await runTool(
@@ -334,5 +394,33 @@ test("a concurrent wait captures the terminal snapshot before close removes it",
     assert.equal(waited[0]?.status, "error");
     assert.equal(closed?.id, snap.id);
     assert.equal(manager.view.get(snap.id), undefined);
+  });
+});
+
+test("close does not wait for an unrelated sibling in a multi-agent wait", async () => {
+  await withManager(async (manager, runtime) => {
+    const closing = await runTool(
+      runtime,
+      manager.spawn("codex", task("Close this child")),
+    );
+    const sibling = await runTool(
+      runtime,
+      manager.spawn("codex", task("Keep sibling running")),
+    );
+    const waiting = runTool(runtime, manager.waitFor([closing.id, sibling.id]));
+
+    const closed = await runTool(
+      runtime,
+      manager.close(closing.id).pipe(Effect.timeout(1_000)),
+    );
+    assert.equal(closed?.id, closing.id);
+    assert.equal(manager.view.get(sibling.id)?.status, "running");
+
+    await runTool(runtime, manager.cancel([sibling.id]));
+    const waited = await waiting;
+    assert.deepEqual(
+      waited.map((snapshot) => snapshot.id),
+      [closing.id, sibling.id],
+    );
   });
 });

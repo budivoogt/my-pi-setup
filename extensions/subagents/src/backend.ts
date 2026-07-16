@@ -26,6 +26,8 @@ export interface BackendCapabilities {
   readonly reasoningEffort: boolean;
 }
 
+export type SendDisposition = "steered" | "queued" | "started";
+
 /**
  * A live subagent session. The manager is the single consumer of `events`;
  * it folds them into the `SubagentSnapshot` everything else reads.
@@ -42,7 +44,9 @@ export interface SubagentSession {
    * Steer the active run, or start a fresh run when idle (v1 `manager.send`
    * semantics — the "is a run active" decision is backend-native state).
    */
-  send(text: string): Effect.Effect<void, SendError>;
+  send(text: string): Effect.Effect<SendDisposition, SendError>;
+  /** Resolve true once all events emitted before this call are folded. */
+  readonly synchronize: Effect.Effect<boolean>;
   /**
    * Interrupt the active run. Resolves once the backend acknowledges; the
    * corresponding RunSettled(Interrupted) arrives on `events`. Callers bound

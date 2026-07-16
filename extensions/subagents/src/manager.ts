@@ -84,6 +84,8 @@ interface Entry {
   /** Idle restart dispatched but RunStarted not folded yet; counts as running
    * so concurrent restarts cannot race past the cap. */
   restarting?: boolean;
+  /** Follow-up turns accepted by a backend but not started yet. */
+  queuedTurns: number;
   /** An interrupt is in flight; sends are rejected until it settles. */
   interrupting?: boolean;
   /** Permanent close was accepted; no further commands may start. */
@@ -179,6 +181,10 @@ const makeManager = Effect.gen(function* () {
 
   const entries = new Map<string, Entry>();
   const waitInterest = new Map<string, number>();
+  const waitCollectors = new Map<
+    string,
+    Set<(snapshot: SubagentSnapshot) => void>
+  >();
   const listeners = new Set<() => void>();
   /** One-shot nextChange waiters, swapped out before invocation so waiters
    * re-registering during notification are not visited in the same sweep. */
@@ -223,8 +229,33 @@ const makeManager = Effect.gen(function* () {
     });
   });
 
+  const hasPendingWork = (entry: Entry) =>
+    entry.snapshot.status === "running" ||
+    entry.restarting === true ||
+    entry.queuedTurns > 0;
+
   const isEntryActive = (entry: Entry) =>
-    entry.snapshot.status === "running" || entry.restarting === true;
+    hasPendingWork(entry) || entry.interrupting === true;
+
+  const copySnapshot = (snapshot: SubagentSnapshot): SubagentSnapshot => ({
+    ...snapshot,
+    meta: { ...snapshot.meta },
+    usage: { ...snapshot.usage },
+    transcript: [...snapshot.transcript],
+    liveAssistant: snapshot.liveAssistant
+      ? { ...snapshot.liveAssistant }
+      : undefined,
+    liveTools: snapshot.liveTools.map((tool) => ({ ...tool })),
+    queued: snapshot.queued.map((message) => ({ ...message })),
+  });
+
+  const captureForWaiters = (entry: Entry) => {
+    if (isEntryActive(entry)) return;
+    const collectors = waitCollectors.get(entry.snapshot.id);
+    if (!collectors) return;
+    const snapshot = copySnapshot(entry.snapshot);
+    for (const capture of collectors) capture(snapshot);
+  };
 
   const runningCount = () => [...entries.values()].filter(isEntryActive).length;
 
@@ -268,7 +299,6 @@ const makeManager = Effect.gen(function* () {
 
   const settle = (entry: Entry, outcome: RunOutcome) => {
     const s = entry.snapshot;
-    entry.restarting = false;
     if (s.status !== "running") return;
     s.settledAt = Date.now();
     switch (outcome._tag) {
@@ -295,6 +325,7 @@ const makeManager = Effect.gen(function* () {
     s.queued = [];
     s.runSequence++;
     const consumed = (waitInterest.get(s.id) ?? 0) > 0;
+    captureForWaiters(entry);
     notify(s.id);
     try {
       // During teardown, don't queue results into a shutting-down session.
@@ -309,11 +340,24 @@ const makeManager = Effect.gen(function* () {
     const s = entry.snapshot;
     switch (event._tag) {
       case "RunStarted":
+        // The initial RunStarted can still be buffered when an active send is
+        // accepted as queued. Only a start following a folded settlement can
+        // consume one of those queued turns.
+        if (
+          s.status !== "running" &&
+          !entry.restarting &&
+          entry.queuedTurns > 0
+        ) {
+          entry.queuedTurns--;
+        }
         entry.restarting = false;
         s.status = "running";
         s.settledAt = undefined;
         s.errorText = undefined;
         break;
+      case "Synchronized":
+        event.resume();
+        return;
       case "RunSettled":
         settle(entry, event.outcome);
         return; // settle() already notified
@@ -452,6 +496,7 @@ const makeManager = Effect.gen(function* () {
           session,
           scope,
           liveToolMap: new Map(),
+          queuedTurns: 0,
         };
         entries.set(id, entry);
 
@@ -494,20 +539,32 @@ const makeManager = Effect.gen(function* () {
   ) =>
     Effect.suspend(() => {
       const unique = [...new Set(ids)];
+      const captured = new Map<string, SubagentSnapshot>();
+      const capture = (snapshot: SubagentSnapshot) => {
+        if (!captured.has(snapshot.id)) captured.set(snapshot.id, snapshot);
+      };
       addInterest(unique);
+      for (const id of unique) {
+        let collectors = waitCollectors.get(id);
+        if (!collectors) {
+          collectors = new Set();
+          waitCollectors.set(id, collectors);
+        }
+        collectors.add(capture);
+        const entry = entries.get(id);
+        if (entry && !isEntryActive(entry))
+          capture(copySnapshot(entry.snapshot));
+      }
       const loop = Effect.gen(function* () {
         while (true) {
-          const pending = unique.filter((id) => {
-            const entry = entries.get(id);
-            return entry ? isEntryActive(entry) : false;
-          });
+          const pending = unique.filter(
+            (id) => entries.has(id) && !captured.has(id),
+          );
           if (pending.length === 0) {
-            const settled: SubagentSnapshot[] = [];
-            for (const id of unique) {
-              const snapshot = entries.get(id)?.snapshot;
-              if (snapshot) settled.push(snapshot);
-            }
-            return settled;
+            return unique.flatMap((id) => {
+              const snapshot = captured.get(id);
+              return snapshot ? [snapshot] : [];
+            });
           }
           onPending?.(pending);
           yield* nextChange;
@@ -516,6 +573,11 @@ const makeManager = Effect.gen(function* () {
       return loop.pipe(
         Effect.ensuring(
           Effect.sync(() => {
+            for (const id of unique) {
+              const collectors = waitCollectors.get(id);
+              collectors?.delete(capture);
+              if (collectors?.size === 0) waitCollectors.delete(id);
+            }
             releaseInterest(unique);
             pruneSettled();
           }),
@@ -547,6 +609,20 @@ const makeManager = Effect.gen(function* () {
           Effect.timeout(STOP_TIMEOUT_MS),
           Effect.ignore,
         );
+      } else {
+        // interrupt() guarantees the terminal event was emitted; the FIFO
+        // barrier guarantees the manager pump folded it before callers inspect
+        // or remove this entry. A closed stream is already drained by its pump.
+        const synchronized = yield* entry.session.synchronize.pipe(
+          Effect.timeout(STOP_TIMEOUT_MS),
+          Effect.orElseSucceed(() => false),
+        );
+        if (!synchronized && entry.pump) {
+          yield* Fiber.await(entry.pump).pipe(
+            Effect.timeout(STOP_TIMEOUT_MS),
+            Effect.ignore,
+          );
+        }
       }
     });
 
@@ -563,7 +639,10 @@ const makeManager = Effect.gen(function* () {
             !entry.interrupting,
         );
       const runningIds = running.map((entry) => entry.snapshot.id);
-      for (const entry of running) entry.interrupting = true;
+      for (const entry of running) {
+        entry.interrupting = true;
+        entry.queuedTurns = 0;
+      }
       // Mark consumed before interrupting so cancellation does not also
       // enqueue duplicate automatic result messages into the parent.
       addInterest(runningIds);
@@ -571,15 +650,18 @@ const makeManager = Effect.gen(function* () {
         yield* Effect.forEach(running, abortEntry, {
           concurrency: "unbounded",
         });
-        while (running.some(isEntryActive)) {
+        while (running.some(hasPendingWork)) {
           yield* nextChange;
         }
       });
       return work.pipe(
         Effect.ensuring(
           Effect.sync(() => {
+            for (const entry of running) {
+              entry.interrupting = false;
+              captureForWaiters(entry);
+            }
             releaseInterest(runningIds);
-            for (const entry of running) entry.interrupting = false;
             pruneSettled();
           }),
         ),
@@ -621,9 +703,10 @@ const makeManager = Effect.gen(function* () {
         });
       }
       // Restarting a settled subagent occupies a running slot again, so it
-      // must respect the same cap as spawn. Steering an already-running one
-      // does not consume additional capacity.
-      if (!isEntryActive(entry)) {
+      // must respect the same cap as spawn. The backend disposition remains
+      // authoritative because its native state can be ahead of this pump.
+      const appearedActive = isEntryActive(entry);
+      if (!appearedActive) {
         if (runningCount() + reserved >= MAX_RUNNING) {
           return new SendError({
             message: `Max ${MAX_RUNNING} subagents can run concurrently; restarting "${id}" would exceed that.`,
@@ -631,18 +714,31 @@ const makeManager = Effect.gen(function* () {
         }
         // Occupy the slot synchronously: the RunStarted that flips status
         // arrives via the async pump, and two concurrent restarts must not
-        // both pass the check in that window. Cleared by RunStarted/settle,
-        // or here when the backend rejects the send.
+        // both pass the check in that window. Cleared by RunStarted, or here
+        // when the backend rejects the send.
         entry.restarting = true;
-        return entry.session.send(text).pipe(
-          Effect.onError(() =>
-            Effect.sync(() => {
-              entry.restarting = false;
-            }),
-          ),
-        );
       }
-      return entry.session.send(text);
+      return entry.session.send(text).pipe(
+        Effect.tap((disposition) =>
+          Effect.sync(() => {
+            if (disposition === "queued") {
+              entry.queuedTurns++;
+            } else if (disposition === "started") {
+              // If the snapshot still says running, an older settlement is
+              // buffered ahead of this new start. Do not let that settlement
+              // expose stale terminal state before RunStarted is folded.
+              entry.restarting = true;
+            }
+            notify(id);
+          }),
+        ),
+        Effect.onError(() =>
+          Effect.sync(() => {
+            if (!appearedActive) entry.restarting = false;
+          }),
+        ),
+        Effect.asVoid,
+      );
     });
 
   const close = (id: string) =>
@@ -652,14 +748,23 @@ const makeManager = Effect.gen(function* () {
       entry.closing = true;
       const interrupted = isEntryActive(entry);
       const shouldInterrupt = interrupted && !entry.interrupting;
-      if (shouldInterrupt) entry.interrupting = true;
+      if (shouldInterrupt) {
+        entry.interrupting = true;
+        entry.queuedTurns = 0;
+      }
       addInterest([id]);
       return Effect.gen(function* () {
         if (shouldInterrupt) yield* abortEntry(entry);
-        while (isEntryActive(entry)) yield* nextChange;
-        // Existing waiters must capture the settled snapshot before the
-        // id is removed. This close operation owns one interest count.
-        while ((waitInterest.get(id) ?? 0) > 1) yield* nextChange;
+        while (
+          hasPendingWork(entry) ||
+          (!shouldInterrupt && entry.interrupting === true)
+        ) {
+          yield* nextChange;
+        }
+        if (shouldInterrupt) {
+          entry.interrupting = false;
+          captureForWaiters(entry);
+        }
         entries.delete(id);
         yield* closeEntryScope(entry).pipe(
           Effect.timeout(STOP_TIMEOUT_MS),

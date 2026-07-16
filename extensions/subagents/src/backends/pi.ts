@@ -614,7 +614,7 @@ const makePiSession = (
       meta: Effect.sync(currentMeta),
       events: Stream.fromQueue(events),
       send: (text) =>
-        Effect.suspend((): Effect.Effect<void, SendError> => {
+        Effect.suspend(() => {
           if (state.closed) {
             return new SendError({
               message: "Subagent session is closed.",
@@ -627,10 +627,20 @@ const makePiSession = (
             return Effect.tryPromise({
               try: () => session.steer(text),
               catch: (error) => new SendError({ message: boundedError(error) }),
-            }).pipe(Effect.asVoid);
+            }).pipe(Effect.as("steered" as const));
           }
-          return Effect.sync(() => startRun(text));
+          return Effect.sync(() => {
+            startRun(text);
+            return "started" as const;
+          });
         }),
+      synchronize: Effect.callback<boolean>((resume) => {
+        const accepted = Queue.offerUnsafe(events, {
+          _tag: "Synchronized",
+          resume: () => resume(Effect.succeed(true)),
+        });
+        if (!accepted) resume(Effect.succeed(false));
+      }),
       interrupt: Effect.promise(async () => {
         if (state.closed) return;
         try {

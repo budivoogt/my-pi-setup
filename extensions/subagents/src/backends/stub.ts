@@ -255,12 +255,16 @@ const makeStubSession = (
           });
         }
         state.pending.push(text);
-        const busy = (yield* Ref.get(activeTurn)) !== undefined;
+        const busy =
+          state.pending.length > 1 ||
+          state.dispatching ||
+          (yield* Ref.get(activeTurn)) !== undefined;
         if (busy) {
           // Show the queued steer line until the driver picks it up.
           yield* emit({ _tag: "QueueChanged", queued: queuedView() });
         }
         yield* Queue.offer(inbox, text);
+        return busy ? ("queued" as const) : ("started" as const);
       });
 
     // Announce metadata, then kick off the initial run.
@@ -275,6 +279,13 @@ const makeStubSession = (
       meta: Effect.sync(() => state.meta),
       events: Stream.fromQueue(events),
       send: submit,
+      synchronize: Effect.callback<boolean>((resume) => {
+        const accepted = Queue.offerUnsafe(events, {
+          _tag: "Synchronized",
+          resume: () => resume(Effect.succeed(true)),
+        });
+        if (!accepted) resume(Effect.succeed(false));
+      }),
       interrupt: Effect.gen(function* () {
         // Drop queued prompts so interrupting cannot immediately start
         // another turn, then stop the active turn. A prompt may be mid-flight

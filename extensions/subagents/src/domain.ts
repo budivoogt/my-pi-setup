@@ -141,6 +141,8 @@ export type SubagentEvent =
   // lifecycle (a session can run multiple turns via send())
   | { readonly _tag: "RunStarted" }
   | { readonly _tag: "RunSettled"; readonly outcome: RunOutcome }
+  /** FIFO barrier used to prove all earlier backend events were folded. */
+  | { readonly _tag: "Synchronized"; readonly resume: () => void }
   // transcript building blocks
   | { readonly _tag: "UserMessage"; readonly text: string }
   | {

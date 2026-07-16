@@ -19,8 +19,11 @@ related: "https://github.com/davis7dotsh/my-pi-setup"
 ## Verification
 
 - Root formatting and TypeScript checks pass.
-- Full offline suite: 119/119 passing.
-- Focused subagent suite: 34/34 passing.
+- Full offline suite: 131/131 passing.
+- Focused subagent suite: 46/46 passing.
+- Targeted lifecycle coverage proves waits include queued follow-up turns and
+  close is not blocked by an unrelated sibling in a multi-agent wait; interrupt
+  uses a FIFO event barrier before exposing terminal state.
 - Independent probe verified that waiting for turn 2 does not consume queued turn 1.
 - Live Pi smoke spawned an `explorer`, read the pinned Pi dependency from
   `package.json`, waited, closed the child, and returned `0.80.7`.
