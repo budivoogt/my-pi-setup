@@ -1,11 +1,15 @@
 ---
 name: subagents
-description: invoke this skill when the user asks you to use subagents
+description: Delegate and manage background work with persistent Pi, Claude Code, or Codex subagents. Use when the user asks for subagents, parallel agent work, delegation, background research, independent review, or a child agent with a separate context window.
 ---
 
 # Subagents
 
 Each subagent is headless, has its own context window, cannot see the parent conversation, cannot ask the user, and cannot spawn subagents or workflows. Give every child a self-contained prompt with paths, constraints, and the expected report.
+
+Keep synthesis and final decisions in the parent. Spawn independent work early,
+continue useful parent work, and wait only when the next step depends on the
+child. Give concurrent writers non-overlapping ownership or separate worktrees.
 
 ## Pi Harness
 
@@ -26,19 +30,44 @@ Pi can use any model shown by `pi --list-models`. Prefer `provider/model-id`; a 
 
 **Thinking budgets:** `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. These map directly to pi thinking levels.
 
+### Roles
+
+Select the narrowest role that fits. Omit `role` to use `worker`.
+
+- `explorer`: locate files, symbols, and evidence with read-only tools.
+- `reviewer`: independently review risks and missing tests with read-only tools.
+- `editor`: apply a small, already-decided edit without shell access.
+- `worker`: implement a bounded task with normal coding tools.
+- `monitor`: run or watch a command and report status without editing.
+
+Default role profiles are bundled with the extension. Files in
+`~/.pi/agent/agents/*.toml` override them by role name. Roles add durable system
+instructions and an exact tool allowlist. They apply to Pi and Claude harnesses.
+By default, a role cannot set `working_dir` outside the parent's current
+directory.
+
 ## Claude Code Harness
 
 **Harness:** `claude`
 **Prompt nicknames:** “claude”, “Claude Code”, “claude agent”, “claude subagent”, "cc"
-**Best default:** use the latest fable model on high reasoning. Do not default to anything else, if the user does not specify, use fable.
+**Best default:** choose a role and use its pinned model and effort. Omit the role
+only when there is a specific reason to override the mapping.
 
-| Model hint | Model               | Recommended effort |
-| ---------- | ------------------- | ------------------ |
-| `fable`    | latest Claude Fable | `high`             |
+| Role       | Exact model ID        | Effort   |
+| ---------- | --------------------- | -------- |
+| `monitor`  | `claude-haiku-4-5`    | `off`    |
+| `explorer` | `claude-sonnet-5`     | `low`    |
+| `editor`   | `claude-sonnet-5`     | `medium` |
+| `worker`   | `claude-opus-4-8`     | `high`   |
+| `reviewer` | `claude-fable-5`      | `high`   |
 
-**Thinking budgets:** `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. The extension maps these to Claude thinking-token budgets: 0, 1,024, 4,096, 10,000, 16,000, 32,000, and 63,999 tokens respectively.
+Only those four exact Claude model IDs are accepted. Do not use aliases such as
+`haiku` or `sonnet`; local Claude settings can redirect aliases. Sonnet, Opus,
+and Fable use adaptive thinking with the SDK's native effort level. Haiku uses
+fixed thinking budgets only when reasoning is explicitly enabled.
 
-Requires Claude Code to be installed and authenticated.
+Requires Claude Code to be installed and authenticated. It uses the existing
+Claude Code login and does not require changes to Claude's configuration.
 
 ## Codex Harness
 
@@ -58,12 +87,16 @@ Requires the Codex CLI to be installed and authenticated.
 
 ## Spawn and Manage
 
-Call `subagent_spawn` with a complete `prompt`, short `name`, chosen `harness`, and optional `working_dir`, `model`, and `reasoning_effort`. At most four subagents run concurrently.
+Call `subagent_spawn` with a complete `prompt`, short `name`, chosen `harness`, and optional `role`, `working_dir`, `model`, and `reasoning_effort`. At most eight subagents run concurrently.
 
 - `subagent_check({ id })`: peek without blocking.
 - `subagent_list()`: list all runs.
 - `subagent_wait({ ids })`: block only when results are required to proceed.
-- `subagent_cancel({ ids })`: stop runs while preserving partial transcripts.
+- `subagent_send({ id, message })`: steer a running child or start another turn in the same idle session.
+- `subagent_interrupt({ id })`: abort the active turn but keep the persistent session.
+- `subagent_cancel({ ids })`: compatibility form for interrupting several children.
+- `subagent_close({ id })`: permanently dispose and remove a child.
 - `/subagents`: inspect or take over a run interactively.
 
-Results return automatically. After spawning, continue useful parent work instead of immediately waiting.
+Results return automatically and explicit waits suppress duplicate delivery.
+Close idle children when their persistent context is no longer useful.

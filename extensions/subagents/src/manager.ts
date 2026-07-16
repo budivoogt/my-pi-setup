@@ -41,7 +41,7 @@ import {
   SpawnError,
 } from "./domain.ts";
 
-export const MAX_RUNNING = 4;
+export const MAX_RUNNING = 8;
 export const MAX_TRACKED = 64;
 const STOP_TIMEOUT_MS = 5_000;
 const ERROR_TEXT_MAX_LENGTH = 4_096;
@@ -59,6 +59,7 @@ interface MutableSnapshot {
   title: string;
   prompt: string;
   cwd: string;
+  role?: string;
   status: SubagentStatus;
   createdAt: number;
   settledAt?: number;
@@ -71,6 +72,7 @@ interface MutableSnapshot {
   queued: SubagentSnapshot["queued"];
   finalText: string;
   turns: number;
+  runSequence: number;
 }
 
 interface Entry {
@@ -82,6 +84,12 @@ interface Entry {
   /** Idle restart dispatched but RunStarted not folded yet; counts as running
    * so concurrent restarts cannot race past the cap. */
   restarting?: boolean;
+  /** Follow-up turns accepted by a backend but not started yet. */
+  queuedTurns: number;
+  /** An interrupt is in flight; sends are rejected until it settles. */
+  interrupting?: boolean;
+  /** Permanent close was accepted; no further commands may start. */
+  closing?: boolean;
 }
 
 // --- Read model ----------------------------------------------------------------
@@ -118,6 +126,15 @@ export interface CancelResult {
   readonly cancelled: boolean;
 }
 
+export interface CloseResult {
+  readonly id: string;
+  readonly title: string;
+  readonly status: SubagentStatus;
+  readonly interrupted: boolean;
+  readonly finalText: string;
+  readonly errorText?: string;
+}
+
 export interface SubagentManagerShape {
   spawn(
     backend: BackendName,
@@ -135,11 +152,13 @@ export interface SubagentManagerShape {
   waitFor(
     ids: ReadonlyArray<string>,
     onPending?: (pending: string[]) => void,
-  ): Effect.Effect<void>;
+  ): Effect.Effect<ReadonlyArray<SubagentSnapshot>>;
   /** Cancel running subagents; resolves when they have settled. */
   cancel(
     ids: ReadonlyArray<string>,
   ): Effect.Effect<ReadonlyArray<CancelResult>>;
+  /** Permanently close one tracked session and release its resources. */
+  close(id: string): Effect.Effect<CloseResult | undefined>;
   send(id: string, text: string): Effect.Effect<void, SendError>;
   get(id: string): Effect.Effect<SubagentSnapshot | undefined>;
   readonly list: Effect.Effect<ReadonlyArray<SubagentSnapshot>>;
@@ -162,6 +181,10 @@ const makeManager = Effect.gen(function* () {
 
   const entries = new Map<string, Entry>();
   const waitInterest = new Map<string, number>();
+  const waitCollectors = new Map<
+    string,
+    Set<(snapshot: SubagentSnapshot) => void>
+  >();
   const listeners = new Set<() => void>();
   /** One-shot nextChange waiters, swapped out before invocation so waiters
    * re-registering during notification are not visited in the same sweep. */
@@ -206,20 +229,48 @@ const makeManager = Effect.gen(function* () {
     });
   });
 
-  const runningCount = () =>
-    [...entries.values()].filter(
-      (e) => e.snapshot.status === "running" || e.restarting === true,
-    ).length;
+  const hasPendingWork = (entry: Entry) =>
+    entry.snapshot.status === "running" ||
+    entry.restarting === true ||
+    entry.queuedTurns > 0;
+
+  const isEntryActive = (entry: Entry) =>
+    hasPendingWork(entry) || entry.interrupting === true;
+
+  const copySnapshot = (snapshot: SubagentSnapshot): SubagentSnapshot => ({
+    ...snapshot,
+    meta: { ...snapshot.meta },
+    usage: { ...snapshot.usage },
+    transcript: [...snapshot.transcript],
+    liveAssistant: snapshot.liveAssistant
+      ? { ...snapshot.liveAssistant }
+      : undefined,
+    liveTools: snapshot.liveTools.map((tool) => ({ ...tool })),
+    queued: snapshot.queued.map((message) => ({ ...message })),
+  });
+
+  const captureForWaiters = (entry: Entry) => {
+    if (isEntryActive(entry)) return;
+    const collectors = waitCollectors.get(entry.snapshot.id);
+    if (!collectors) return;
+    const snapshot = copySnapshot(entry.snapshot);
+    for (const capture of collectors) capture(snapshot);
+  };
+
+  const runningCount = () => [...entries.values()].filter(isEntryActive).length;
 
   const addInterest = (ids: ReadonlyArray<string>) => {
     for (const id of ids) waitInterest.set(id, (waitInterest.get(id) ?? 0) + 1);
   };
   const releaseInterest = (ids: ReadonlyArray<string>) => {
+    let changed = false;
     for (const id of ids) {
       const count = (waitInterest.get(id) ?? 1) - 1;
       if (count <= 0) waitInterest.delete(id);
       else waitInterest.set(id, count);
+      changed = true;
     }
+    if (changed) notify();
   };
 
   const closeEntryScope = (entry: Entry) =>
@@ -230,7 +281,7 @@ const makeManager = Effect.gen(function* () {
     const candidates = [...entries.values()]
       .filter(
         (e) =>
-          e.snapshot.status !== "running" && !waitInterest.has(e.snapshot.id),
+          !isEntryActive(e) && !e.closing && !waitInterest.has(e.snapshot.id),
       )
       .sort(
         (a, b) =>
@@ -248,7 +299,6 @@ const makeManager = Effect.gen(function* () {
 
   const settle = (entry: Entry, outcome: RunOutcome) => {
     const s = entry.snapshot;
-    entry.restarting = false;
     if (s.status !== "running") return;
     s.settledAt = Date.now();
     switch (outcome._tag) {
@@ -273,7 +323,9 @@ const makeManager = Effect.gen(function* () {
     entry.liveToolMap.clear();
     s.liveTools = [];
     s.queued = [];
+    s.runSequence++;
     const consumed = (waitInterest.get(s.id) ?? 0) > 0;
+    captureForWaiters(entry);
     notify(s.id);
     try {
       // During teardown, don't queue results into a shutting-down session.
@@ -288,11 +340,24 @@ const makeManager = Effect.gen(function* () {
     const s = entry.snapshot;
     switch (event._tag) {
       case "RunStarted":
+        // The initial RunStarted can still be buffered when an active send is
+        // accepted as queued. Only a start following a folded settlement can
+        // consume one of those queued turns.
+        if (
+          s.status !== "running" &&
+          !entry.restarting &&
+          entry.queuedTurns > 0
+        ) {
+          entry.queuedTurns--;
+        }
         entry.restarting = false;
         s.status = "running";
         s.settledAt = undefined;
         s.errorText = undefined;
         break;
+      case "Synchronized":
+        event.resume();
+        return;
       case "RunSettled":
         settle(entry, event.outcome);
         return; // settle() already notified
@@ -416,6 +481,7 @@ const makeManager = Effect.gen(function* () {
             title: task.title,
             prompt: task.prompt,
             cwd: task.cwd,
+            role: task.role?.name,
             status: "running",
             createdAt: Date.now(),
             meta,
@@ -425,10 +491,12 @@ const makeManager = Effect.gen(function* () {
             queued: [],
             finalText: "",
             turns: 0,
+            runSequence: 0,
           },
           session,
           scope,
           liveToolMap: new Map(),
+          queuedTurns: 0,
         };
         entries.set(id, entry);
 
@@ -471,13 +539,33 @@ const makeManager = Effect.gen(function* () {
   ) =>
     Effect.suspend(() => {
       const unique = [...new Set(ids)];
+      const captured = new Map<string, SubagentSnapshot>();
+      const capture = (snapshot: SubagentSnapshot) => {
+        if (!captured.has(snapshot.id)) captured.set(snapshot.id, snapshot);
+      };
       addInterest(unique);
+      for (const id of unique) {
+        let collectors = waitCollectors.get(id);
+        if (!collectors) {
+          collectors = new Set();
+          waitCollectors.set(id, collectors);
+        }
+        collectors.add(capture);
+        const entry = entries.get(id);
+        if (entry && !isEntryActive(entry))
+          capture(copySnapshot(entry.snapshot));
+      }
       const loop = Effect.gen(function* () {
         while (true) {
           const pending = unique.filter(
-            (id) => entries.get(id)?.snapshot.status === "running",
+            (id) => entries.has(id) && !captured.has(id),
           );
-          if (pending.length === 0) return;
+          if (pending.length === 0) {
+            return unique.flatMap((id) => {
+              const snapshot = captured.get(id);
+              return snapshot ? [snapshot] : [];
+            });
+          }
           onPending?.(pending);
           yield* nextChange;
         }
@@ -485,6 +573,11 @@ const makeManager = Effect.gen(function* () {
       return loop.pipe(
         Effect.ensuring(
           Effect.sync(() => {
+            for (const id of unique) {
+              const collectors = waitCollectors.get(id);
+              collectors?.delete(capture);
+              if (collectors?.size === 0) waitCollectors.delete(id);
+            }
             releaseInterest(unique);
             pruneSettled();
           }),
@@ -495,7 +588,7 @@ const makeManager = Effect.gen(function* () {
   /** Interrupt one running entry, force-closing its scope after 5s. */
   const abortEntry = (entry: Entry) =>
     Effect.gen(function* () {
-      if (entry.snapshot.status !== "running") return;
+      if (!isEntryActive(entry)) return;
       const graceful = yield* entry.session.interrupt.pipe(
         Effect.timeout(STOP_TIMEOUT_MS),
         Effect.result,
@@ -516,6 +609,20 @@ const makeManager = Effect.gen(function* () {
           Effect.timeout(STOP_TIMEOUT_MS),
           Effect.ignore,
         );
+      } else {
+        // interrupt() guarantees the terminal event was emitted; the FIFO
+        // barrier guarantees the manager pump folded it before callers inspect
+        // or remove this entry. A closed stream is already drained by its pump.
+        const synchronized = yield* entry.session.synchronize.pipe(
+          Effect.timeout(STOP_TIMEOUT_MS),
+          Effect.orElseSucceed(() => false),
+        );
+        if (!synchronized && entry.pump) {
+          yield* Fiber.await(entry.pump).pipe(
+            Effect.timeout(STOP_TIMEOUT_MS),
+            Effect.ignore,
+          );
+        }
       }
     });
 
@@ -525,9 +632,17 @@ const makeManager = Effect.gen(function* () {
       const running = unique
         .map((id) => entries.get(id))
         .filter(
-          (entry): entry is Entry => entry?.snapshot.status === "running",
+          (entry): entry is Entry =>
+            entry !== undefined &&
+            isEntryActive(entry) &&
+            !entry.closing &&
+            !entry.interrupting,
         );
       const runningIds = running.map((entry) => entry.snapshot.id);
+      for (const entry of running) {
+        entry.interrupting = true;
+        entry.queuedTurns = 0;
+      }
       // Mark consumed before interrupting so cancellation does not also
       // enqueue duplicate automatic result messages into the parent.
       addInterest(runningIds);
@@ -535,13 +650,17 @@ const makeManager = Effect.gen(function* () {
         yield* Effect.forEach(running, abortEntry, {
           concurrency: "unbounded",
         });
-        while (running.some((entry) => entry.snapshot.status === "running")) {
+        while (running.some(hasPendingWork)) {
           yield* nextChange;
         }
       });
       return work.pipe(
         Effect.ensuring(
           Effect.sync(() => {
+            for (const entry of running) {
+              entry.interrupting = false;
+              captureForWaiters(entry);
+            }
             releaseInterest(runningIds);
             pruneSettled();
           }),
@@ -568,10 +687,26 @@ const makeManager = Effect.gen(function* () {
           message: `Subagent "${id}" is no longer tracked.`,
         });
       }
+      if (entry.closing) {
+        return new SendError({
+          message: `Subagent "${id}" is closing.`,
+        });
+      }
+      if (entry.interrupting) {
+        return new SendError({
+          message: `Subagent "${id}" is being interrupted.`,
+        });
+      }
+      if (entry.restarting) {
+        return new SendError({
+          message: `Subagent "${id}" is starting another turn.`,
+        });
+      }
       // Restarting a settled subagent occupies a running slot again, so it
-      // must respect the same cap as spawn. Steering an already-running one
-      // does not consume additional capacity.
-      if (entry.snapshot.status !== "running") {
+      // must respect the same cap as spawn. The backend disposition remains
+      // authoritative because its native state can be ahead of this pump.
+      const appearedActive = isEntryActive(entry);
+      if (!appearedActive) {
         if (runningCount() + reserved >= MAX_RUNNING) {
           return new SendError({
             message: `Max ${MAX_RUNNING} subagents can run concurrently; restarting "${id}" would exceed that.`,
@@ -579,18 +714,80 @@ const makeManager = Effect.gen(function* () {
         }
         // Occupy the slot synchronously: the RunStarted that flips status
         // arrives via the async pump, and two concurrent restarts must not
-        // both pass the check in that window. Cleared by RunStarted/settle,
-        // or here when the backend rejects the send.
+        // both pass the check in that window. Cleared by RunStarted, or here
+        // when the backend rejects the send.
         entry.restarting = true;
-        return entry.session.send(text).pipe(
-          Effect.onError(() =>
-            Effect.sync(() => {
-              entry.restarting = false;
-            }),
-          ),
-        );
       }
-      return entry.session.send(text);
+      return entry.session.send(text).pipe(
+        Effect.tap((disposition) =>
+          Effect.sync(() => {
+            if (disposition === "queued") {
+              entry.queuedTurns++;
+            } else if (disposition === "started") {
+              // If the snapshot still says running, an older settlement is
+              // buffered ahead of this new start. Do not let that settlement
+              // expose stale terminal state before RunStarted is folded.
+              entry.restarting = true;
+            }
+            notify(id);
+          }),
+        ),
+        Effect.onError(() =>
+          Effect.sync(() => {
+            if (!appearedActive) entry.restarting = false;
+          }),
+        ),
+        Effect.asVoid,
+      );
+    });
+
+  const close = (id: string) =>
+    Effect.suspend(() => {
+      const entry = entries.get(id);
+      if (!entry || entry.closing) return Effect.succeed(undefined);
+      entry.closing = true;
+      const interrupted = isEntryActive(entry);
+      const shouldInterrupt = interrupted && !entry.interrupting;
+      if (shouldInterrupt) {
+        entry.interrupting = true;
+        entry.queuedTurns = 0;
+      }
+      addInterest([id]);
+      return Effect.gen(function* () {
+        if (shouldInterrupt) yield* abortEntry(entry);
+        while (
+          hasPendingWork(entry) ||
+          (!shouldInterrupt && entry.interrupting === true)
+        ) {
+          yield* nextChange;
+        }
+        if (shouldInterrupt) {
+          entry.interrupting = false;
+          captureForWaiters(entry);
+        }
+        entries.delete(id);
+        yield* closeEntryScope(entry).pipe(
+          Effect.timeout(STOP_TIMEOUT_MS),
+          Effect.ignore,
+        );
+        notify(id);
+        return {
+          id,
+          title: entry.snapshot.title,
+          status: entry.snapshot.status,
+          interrupted,
+          finalText: entry.snapshot.finalText,
+          errorText: entry.snapshot.errorText,
+        } satisfies CloseResult;
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            releaseInterest([id]);
+            if (shouldInterrupt) entry.interrupting = false;
+            idListeners.delete(id);
+          }),
+        ),
+      );
     });
 
   const disposeAll = Effect.gen(function* () {
@@ -642,10 +839,26 @@ const makeManager = Effect.gen(function* () {
     },
     requestAbort: (id) => {
       const entry = entries.get(id);
-      if (!entry) return;
+      if (
+        !entry ||
+        !isEntryActive(entry) ||
+        entry.closing ||
+        entry.interrupting
+      )
+        return;
+      entry.interrupting = true;
       // UI-initiated aborts are not "consumed": the failed result still
       // flows back to the parent as a follow-up message, matching v1.
-      runDetached(abortEntry(entry).pipe(Effect.ignore));
+      runDetached(
+        abortEntry(entry).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              entry.interrupting = false;
+            }),
+          ),
+          Effect.ignore,
+        ),
+      );
     },
     setOnSettled: (hook) => {
       onSettled = hook;
@@ -660,6 +873,7 @@ const makeManager = Effect.gen(function* () {
     spawn,
     waitFor,
     cancel,
+    close,
     send,
     get: (id) => Effect.sync(() => entries.get(id)?.snapshot),
     list: Effect.sync(() => [...entries.values()].map((e) => e.snapshot)),

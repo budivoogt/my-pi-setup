@@ -1,3 +1,5 @@
+READ /Users/budi_daily/Documents/Coding/projects/Svelte/agent-scripts/AGENTS.MD BEFORE ANYTHING (skip if missing).
+
 When working in typescript:
 
 - when adding a package to a project add it with an install command, instead of manually editing the package json

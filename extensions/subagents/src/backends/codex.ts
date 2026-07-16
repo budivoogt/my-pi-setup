@@ -352,6 +352,7 @@ const makeCodexSession = (
         modelLabel: task.model,
       } satisfies SubagentMeta as SubagentMeta,
       interruptTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+      settleWaiters: new Set<() => void>(),
     };
     const pendingRequests = new Map<number, PendingRequest>();
     const tools = new Map<string, ToolState>();
@@ -422,6 +423,8 @@ const makeCodexSession = (
       state.interruptRequested = false;
       tools.clear();
       emit({ _tag: "RunSettled", outcome });
+      for (const waiter of state.settleWaiters) waiter();
+      state.settleWaiters.clear();
       queueMicrotask(startNextQueued);
     };
 
@@ -555,7 +558,10 @@ const makeCodexSession = (
       if (type === "agentMessage") {
         const text = stringValue(item.text) ?? "";
         if (text) {
-          emit({ _tag: "AssistantMessage", parts: [{ type: "text", text }] });
+          emit({
+            _tag: "AssistantMessage",
+            parts: [{ type: "text", text }],
+          });
           state.lastAssistantText = text;
           if (stringValue(item.phase) === "final_answer")
             state.finalText = text;
@@ -655,7 +661,12 @@ const makeCodexSession = (
         case "item/reasoning/summaryTextDelta":
         case "item/reasoning/textDelta": {
           const delta = stringValue(params.delta);
-          if (delta) emit({ _tag: "AssistantDelta", kind: "thinking", delta });
+          if (delta)
+            emit({
+              _tag: "AssistantDelta",
+              kind: "thinking",
+              delta,
+            });
           break;
         }
         case "item/started": {
@@ -689,7 +700,9 @@ const makeCodexSession = (
             emit({
               _tag: "ToolUpdate",
               toolId: id,
-              outputPreview: fileChangePreview({ changes: params.changes }),
+              outputPreview: fileChangePreview({
+                changes: params.changes,
+              }),
             });
           }
           break;
@@ -932,22 +945,35 @@ const makeCodexSession = (
       meta: Effect.sync(() => state.meta),
       events: Stream.fromQueue(events),
       send: (text) =>
-        Effect.suspend((): Effect.Effect<void, SendError> => {
+        Effect.suspend(() => {
           if (state.closed) {
-            return new SendError({ message: "Subagent session is closed." });
+            return new SendError({
+              message: "Subagent session is closed.",
+            });
           }
           if (state.activeRun) {
             state.pendingPrompts.push(text);
             emit({ _tag: "QueueChanged", queued: queuedView() });
-            return Effect.void;
+            return Effect.succeed("queued" as const);
           }
-          return Effect.sync(() => startRun(text));
+          return Effect.sync(() => {
+            startRun(text);
+            return "started" as const;
+          });
         }),
+      synchronize: Effect.callback<boolean>((resume) => {
+        const accepted = Queue.offerUnsafe(events, {
+          _tag: "Synchronized",
+          resume: () => resume(Effect.succeed(true)),
+        });
+        if (!accepted) resume(Effect.succeed(false));
+      }),
       interrupt: Effect.promise(async () => {
-        if (state.closed || !state.activeRun) return;
-        const serial = state.runSerial;
+        if (state.closed) return;
         state.pendingPrompts = [];
         emit({ _tag: "QueueChanged", queued: [] });
+        if (!state.activeRun) return;
+        const serial = state.runSerial;
         state.interruptRequested = true;
         sendInterrupt(serial);
         if (state.interruptTimer) clearTimeout(state.interruptTimer);
@@ -966,6 +992,16 @@ const makeCodexSession = (
             void terminateChild(child, () => state.exited);
           }
         }, INTERRUPT_FALLBACK_MS);
+        if (state.activeRun && serial === state.runSerial) {
+          await new Promise<void>((resolve) => {
+            const waiter = () => resolve();
+            state.settleWaiters.add(waiter);
+            if (!state.activeRun || serial !== state.runSerial) {
+              state.settleWaiters.delete(waiter);
+              resolve();
+            }
+          });
+        }
       }),
     } satisfies SubagentSession;
   });

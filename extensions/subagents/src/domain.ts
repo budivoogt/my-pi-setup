@@ -49,12 +49,18 @@ export interface SpawnTask {
   readonly cwd: string;
   /**
    * Generic model hint, interpreted per backend:
-   * pi: "provider/model-id" or bare model id; claude: model alias;
+   * pi: "provider/model-id" or bare model id; claude: exact approved model id;
    * codex: model slug. Omitted = backend default / inherit.
    */
   readonly model?: string;
   /** Shared effort scale; each backend maps it to its native equivalent. */
   readonly reasoningEffort?: ReasoningEffort;
+  /** Durable child role resolved by the parent tool layer. */
+  readonly role?: {
+    readonly name: string;
+    readonly developerInstructions: string;
+    readonly tools: ReadonlyArray<string>;
+  };
   readonly parent: ParentContext;
 }
 
@@ -135,6 +141,8 @@ export type SubagentEvent =
   // lifecycle (a session can run multiple turns via send())
   | { readonly _tag: "RunStarted" }
   | { readonly _tag: "RunSettled"; readonly outcome: RunOutcome }
+  /** FIFO barrier used to prove all earlier backend events were folded. */
+  | { readonly _tag: "Synchronized"; readonly resume: () => void }
   // transcript building blocks
   | { readonly _tag: "UserMessage"; readonly text: string }
   | {
@@ -190,21 +198,30 @@ export interface SubagentSnapshot {
   readonly title: string;
   readonly prompt: string;
   readonly cwd: string;
+  readonly role?: string;
   readonly status: SubagentStatus;
   readonly createdAt: number;
   readonly settledAt?: number;
   readonly errorText?: string;
   readonly meta: SubagentMeta;
-  readonly usage: { readonly tokens?: number; readonly contextWindow?: number };
+  readonly usage: {
+    readonly tokens?: number;
+    readonly contextWindow?: number;
+  };
   readonly transcript: ReadonlyArray<TranscriptItem>;
   /** Streaming assistant buffers, cleared when the finalized message lands. */
-  readonly liveAssistant?: { readonly text: string; readonly thinking: string };
+  readonly liveAssistant?: {
+    readonly text: string;
+    readonly thinking: string;
+  };
   readonly liveTools: ReadonlyArray<LiveToolState>;
   readonly queued: ReadonlyArray<QueuedMessage>;
   /** Final text of the most recent completed run (v1 `finalOutput`). */
   readonly finalText: string;
   /** Count of finalized assistant messages (for subagent_check). */
   readonly turns: number;
+  /** Monotonic count of settled runs, used to key deferred deliveries. */
+  readonly runSequence: number;
 }
 
 /** Final text, or the live streaming buffer while a run is active (v1 `latestOutput`). */

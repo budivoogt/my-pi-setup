@@ -1,11 +1,70 @@
 # Setup
 
-Clone or copy this repository to `~/.pi/agent`, then install its dependencies:
+Install the subagents extension and skill as a pinned Pi Git package. Replace
+`<commit-sha>` with the reviewed commit to install:
 
 ```sh
-cd ~/.pi/agent
-npm install
+pi install git:github.com/budivoogt/my-pi-setup@<commit-sha>
+pi list
 ```
+
+Restart Pi or run `/reload`. The package manifest exposes only the subagents
+extension and skill; it does not enable the fork's other extensions, prompts,
+or themes.
+
+Pi 0.80.7 is the locally verified version. The package targets the
+`@earendil-works/pi-*` distribution used by this setup.
+
+## Subagent roles
+
+The package includes default role profiles. To customize one, create a TOML file
+under `~/.pi/agent/agents/` with the same `name`; user roles override packaged
+defaults by name. Each file declares:
+
+```toml
+name = "explorer"
+description = "Narrow read-only repository exploration"
+developer_instructions = "Locate evidence with file paths. Do not edit."
+tools = ["read", "grep", "find", "ls"]
+model = "openai-codex/gpt-5.3-codex-spark"
+reasoning_effort = "high"
+claude_model = "claude-sonnet-5"
+claude_reasoning_effort = "low"
+```
+
+Optional keys are `model`, `reasoning_effort`, `claude_model`,
+`claude_reasoning_effort`, and `allow_outside_parent_cwd`. Keep the last option
+false unless cross-repository work is intentional. Spawn arguments override a
+role's model and reasoning defaults.
+
+The packaged models mirror the local Codex CLI roles: Spark/high for explorer,
+Luna/medium for editor, Terra/high for worker, Sol/xhigh for reviewer, and
+Luna/low for monitor. Explicit spawn arguments still take precedence.
+
+For the Claude harness, the packaged mapping is Haiku 4.5/off for monitor,
+Sonnet 5/low for explorer, Sonnet 5/medium for editor, Opus 4.8/high for worker,
+and Fable 5/high for reviewer. Claude Code must already be installed and signed
+in. The extension accepts only those four exact Claude model IDs, avoiding local
+alias overrides.
+
+## Full setup development
+
+Contributors working on the complete extension collection can clone the
+repository elsewhere and install its root workspace without replacing an
+existing Pi agent directory:
+
+```sh
+git clone https://github.com/budivoogt/my-pi-setup.git
+cd my-pi-setup
+npm ci
+npm run check
+npm test
+```
+
+Start Pi from the repository the children should work in. A basic manual check
+is to ask the parent to spawn an `explorer`, inspect it with `/subagents`, send
+a refinement, wait for the answer, and close it. The child should not have
+shell or write tools, and it should disappear from the dashboard after close.
 
 ## Firecrawl
 

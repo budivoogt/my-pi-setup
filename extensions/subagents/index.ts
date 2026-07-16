@@ -4,9 +4,11 @@
  *
  * Tools (for the parent LLM):
  * - subagent_spawn: fire-and-forget spawn (prompt, title, agent, working_dir,
- *   model, reasoning_effort). Max 4 running at once across all backends.
+ *   model, reasoning_effort). Max 8 running at once across all backends.
  * - subagent_wait: block until the listed subagents settle, return results.
- * - subagent_cancel: stop one or more running subagents.
+ * - subagent_send: steer a running child or continue an idle child.
+ * - subagent_cancel/subagent_interrupt: stop active work but keep the session.
+ * - subagent_close: permanently release a child session.
  * - subagent_check: peek at a subagent's status and recent activity.
  * - subagent_list: list all subagents.
  *
@@ -58,7 +60,11 @@ import {
   SUBAGENT_CANCEL_TOOL_DESCRIPTION,
   SUBAGENT_CHECK_PARAMETER_DESCRIPTIONS,
   SUBAGENT_CHECK_TOOL_DESCRIPTION,
+  SUBAGENT_CLOSE_PARAMETER_DESCRIPTIONS,
+  SUBAGENT_CLOSE_TOOL_DESCRIPTION,
   SUBAGENT_LIST_TOOL_DESCRIPTION,
+  SUBAGENT_SEND_PARAMETER_DESCRIPTIONS,
+  SUBAGENT_SEND_TOOL_DESCRIPTION,
   SUBAGENT_SPAWN_PARAMETER_DESCRIPTIONS,
   SUBAGENT_SPAWN_PROMPT_GUIDELINES,
   SUBAGENT_SPAWN_PROMPT_SNIPPET,
@@ -67,6 +73,13 @@ import {
   SUBAGENT_WAIT_TOOL_DESCRIPTION,
 } from "./src/prompt.ts";
 import { createDeferredResultDelivery } from "./src/result-delivery.ts";
+import {
+  assertRoleWorkingDirectory,
+  loadRoleProfiles,
+  resolveRoleProfile,
+  roleDefaultsForHarness,
+  roleForSpawn,
+} from "./src/roles.ts";
 import {
   createSubagentRuntime,
   runTool,
@@ -83,6 +96,7 @@ function describeSubagent(snap: SubagentSnapshot) {
     `${snap.backend}: ${snap.meta.modelLabel ?? "?"}`,
     formatContextUtilization(snap.usage),
     formatElapsed(snap),
+    snap.role ? `role: ${snap.role}` : undefined,
     snap.cwd,
   ].filter(Boolean);
   return `${snap.id} [${snap.status}] "${snap.title}" (${details.join(", ")})`;
@@ -189,7 +203,7 @@ export default function (pi: ExtensionAPI) {
 
   const onSettled = (snap: SubagentSnapshot, consumed: boolean) => {
     if (consumed) {
-      resultDelivery.consume([snap.id]);
+      resultDelivery.consume([snap]);
       return;
     }
     // Keep the result retractable while the parent is working. A later
@@ -236,6 +250,11 @@ export default function (pi: ExtensionAPI) {
       name: Type.String({
         description: SUBAGENT_SPAWN_PARAMETER_DESCRIPTIONS.name,
       }),
+      role: Type.Optional(
+        Type.String({
+          description: SUBAGENT_SPAWN_PARAMETER_DESCRIPTIONS.role,
+        }),
+      ),
       harness: StringEnum(BACKEND_NAMES, {
         description: SUBAGENT_SPAWN_PARAMETER_DESCRIPTIONS.harness,
       }),
@@ -259,10 +278,31 @@ export default function (pi: ExtensionAPI) {
       const manager = await getManager();
       const harness = params.harness;
 
-      const cwd = path.resolve(ctx.cwd, params.working_dir ?? ".");
-      if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
-        throw new Error(`working_dir is not a directory: ${cwd}`);
+      const profiles = loadRoleProfiles(getAgentDir());
+      const requestedRole = params.role?.trim();
+      if (requestedRole && harness === "codex") {
+        throw new Error(
+          `Role profiles currently apply to the pi and claude harnesses, not "${harness}".`,
+        );
       }
+      const role =
+        harness === "pi" || harness === "claude"
+          ? resolveRoleProfile(profiles, requestedRole || "worker")
+          : undefined;
+      const roleDefaults = role
+        ? roleDefaultsForHarness(role, harness)
+        : undefined;
+
+      const requestedCwd = path.resolve(ctx.cwd, params.working_dir ?? ".");
+      if (
+        !fs.existsSync(requestedCwd) ||
+        !fs.statSync(requestedCwd).isDirectory()
+      ) {
+        throw new Error(`working_dir is not a directory: ${requestedCwd}`);
+      }
+      const cwd = fs.realpathSync(requestedCwd);
+      const parentCwd = fs.realpathSync(ctx.cwd);
+      if (role) assertRoleWorkingDirectory(parentCwd, cwd, role);
 
       const title = params.name.trim().slice(0, 160) || "subagent";
       const snap = await runTool(
@@ -271,8 +311,10 @@ export default function (pi: ExtensionAPI) {
           prompt: params.prompt,
           title,
           cwd,
-          model: params.model,
-          reasoningEffort: params.reasoning_effort,
+          model: params.model ?? roleDefaults?.model,
+          reasoningEffort:
+            params.reasoning_effort ?? roleDefaults?.reasoningEffort,
+          role: role ? roleForSpawn(role) : undefined,
           parent: {
             parentCwd: ctx.cwd,
             projectTrusted: resolveChildProjectTrust({
@@ -299,6 +341,7 @@ export default function (pi: ExtensionAPI) {
               harness,
               modelLabel: snap.meta.modelLabel ?? "?",
               cwd,
+              role: snap.role,
             }),
           },
         ],
@@ -308,7 +351,47 @@ export default function (pi: ExtensionAPI) {
           cwd,
           harness,
           model: snap.meta.modelLabel,
+          role: snap.role,
         },
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "subagent_send",
+    label: "Send to Subagent",
+    description: SUBAGENT_SEND_TOOL_DESCRIPTION,
+    parameters: Type.Object({
+      id: Type.String({
+        description: SUBAGENT_SEND_PARAMETER_DESCRIPTIONS.id,
+      }),
+      message: Type.String({
+        description: SUBAGENT_SEND_PARAMETER_DESCRIPTIONS.message,
+      }),
+    }),
+    async execute(_toolCallId, params) {
+      const manager = await getManager();
+      const message = params.message.trim();
+      if (!message) throw new Error("Provide a non-empty message.");
+      const snap = manager.view.get(params.id);
+      if (!snap) {
+        const known = manager.view.list().map((entry) => entry.id);
+        throw new Error(
+          `Unknown subagent id "${params.id}". Known: ${known.join(", ") || "none"}.`,
+        );
+      }
+      await runTool(getRuntime(), manager.send(params.id, message));
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              snap.status === "running"
+                ? `Steering message queued for ${params.id}.`
+                : `Started another turn for ${params.id}.`,
+          },
+        ],
+        details: { id: params.id, previousStatus: snap.status },
       };
     },
   });
@@ -336,27 +419,36 @@ export default function (pi: ExtensionAPI) {
         );
       }
 
-      await runTool(
+      const settled = await runTool(
         getRuntime(),
         manager.waitFor(ids, (pending) => {
           onUpdate?.({
             content: [
-              { type: "text", text: `Waiting for ${pending.join(", ")}...` },
+              {
+                type: "text",
+                text: `Waiting for ${pending.join(", ")}...`,
+              },
             ],
             details: { pending },
           });
         }),
-        { signal, interruptMessage: "Wait aborted. Subagents keep running." },
+        {
+          signal,
+          interruptMessage: "Wait aborted. Subagents keep running.",
+        },
       );
 
       // Settlement may have happened before this wait began. Remove any
       // deferred automatic delivery now that the tool is returning the result.
-      resultDelivery.consume(ids);
+      resultDelivery.consume(settled);
 
+      const settledById = new Map(
+        settled.map((snapshot) => [snapshot.id, snapshot]),
+      );
       const sections: string[] = [];
       let remainingBytes = WAIT_OUTPUT_MAX_BYTES;
       for (const id of ids) {
-        const snap = manager.view.get(id);
+        const snap = settledById.get(id);
         if (!snap) {
           sections.push(`## ${id}\n\n(no longer tracked)`);
           continue;
@@ -397,6 +489,75 @@ export default function (pi: ExtensionAPI) {
             return { id, title: snap?.title, status: snap?.status };
           }),
         },
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "subagent_interrupt",
+    label: "Interrupt Subagent",
+    description: SUBAGENT_CANCEL_TOOL_DESCRIPTION,
+    parameters: Type.Object({
+      id: Type.String({
+        description: "Subagent id to interrupt",
+      }),
+    }),
+    async execute(_toolCallId, params) {
+      const manager = await getManager();
+      const snap = manager.view.get(params.id);
+      if (!snap) {
+        const known = manager.view.list().map((entry) => entry.id);
+        throw new Error(
+          `Unknown subagent id "${params.id}". Known: ${known.join(", ") || "none"}.`,
+        );
+      }
+      const [result] = await runTool(getRuntime(), manager.cancel([params.id]));
+      return {
+        content: [
+          {
+            type: "text",
+            text: result.cancelled
+              ? `Interrupted ${result.id} "${result.title}". The session remains available for subagent_send.`
+              : `${result.id} "${result.title}" was already ${result.status}.`,
+          },
+        ],
+        details: result,
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "subagent_close",
+    label: "Close Subagent",
+    description: SUBAGENT_CLOSE_TOOL_DESCRIPTION,
+    parameters: Type.Object({
+      id: Type.String({
+        description: SUBAGENT_CLOSE_PARAMETER_DESCRIPTIONS.id,
+      }),
+    }),
+    async execute(_toolCallId, params) {
+      const manager = await getManager();
+      if (!manager.view.get(params.id)) {
+        const known = manager.view.list().map((entry) => entry.id);
+        throw new Error(
+          `Unknown subagent id "${params.id}". Known: ${known.join(", ") || "none"}.`,
+        );
+      }
+      const result = await runTool(getRuntime(), manager.close(params.id));
+      if (!result)
+        throw new Error(`Subagent "${params.id}" is already closed.`);
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              `Closed ${result.id} "${result.title}"${result.interrupted ? " after interrupting its active turn" : ""}.` +
+              (result.interrupted && result.finalText
+                ? `\n\nPartial output:\n${result.finalText}`
+                : ""),
+          },
+        ],
+        details: result,
       };
     },
   });
@@ -469,7 +630,10 @@ export default function (pi: ExtensionAPI) {
 
       const output = latestText(snap);
       if (output) {
-        const preview = truncateHead(output, { maxBytes: 2048, maxLines: 20 });
+        const preview = truncateHead(output, {
+          maxBytes: 2048,
+          maxLines: 20,
+        });
         text += `\n\nLatest output:\n${preview.content}`;
         if (preview.truncated) text += "\n[...]";
       } else if (snap.status === "running") {

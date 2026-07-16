@@ -96,7 +96,10 @@ test("Codex occupancy uses tokenUsage.last.totalTokens, not the cumulative total
 test("Codex occupancy is unknown when last usage or window is absent", () => {
   assert.deepEqual(
     parseThreadTokenUsage(
-      codexParams({ total: { totalTokens: 10 }, modelContextWindow: null }),
+      codexParams({
+        total: { totalTokens: 10 },
+        modelContextWindow: null,
+      }),
     ),
     { tokens: undefined, contextWindow: undefined },
   );
