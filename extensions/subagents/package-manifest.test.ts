@@ -7,7 +7,7 @@ const packagePath = fileURLToPath(
   new URL("../../package.json", import.meta.url),
 );
 
-test("the root Pi package exposes only the subagents extension and skill", () => {
+test("the root Pi package exposes the supported extensions and subagents skill", () => {
   const manifest = JSON.parse(fs.readFileSync(packagePath, "utf8")) as {
     keywords?: string[];
     pi?: Record<string, string[]>;
@@ -15,7 +15,10 @@ test("the root Pi package exposes only the subagents extension and skill", () =>
 
   assert.ok(manifest.keywords?.includes("pi-package"));
   assert.deepEqual(manifest.pi, {
-    extensions: ["./extensions/subagents/index.ts"],
+    extensions: [
+      "./extensions/subagents/index.ts",
+      "./extensions/background-terminals/index.ts",
+    ],
     skills: ["./skills/subagents/SKILL.md"],
   });
 });

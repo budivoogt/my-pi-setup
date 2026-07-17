@@ -11,6 +11,7 @@ This setup is fairly opinionated, it:
 - adds firecrawl tools for searching and scraping
 - updates the bottom bar to have the info I prefer to see
 - adds subagents to pi
+- adds session-scoped background terminals with a `/ps` viewer
 - adds workflows to pi
 - adds an ask user tool, which lets the model ask multiple choice questions
 
@@ -54,7 +55,18 @@ to the parent's tree unless a role explicitly opts out.
 > has the parent process's filesystem and environment permissions. Give parallel
 > writers non-overlapping ownership or separate git worktrees.
 
+## Background terminals
+
+Use `bg_start` for temporary, non-interactive processes such as dev servers,
+watchers, and long builds. Pi can inspect them with `bg_status` or `/ps`, stop
+them with `bg_kill`, and receives their final output automatically.
+
+Use tmux instead when a process requires interactive input or must survive a Pi
+reload, session change, or exit. Background terminals are deliberately tied to
+the owning Pi session and are cleaned up during teardown.
+
 ![Pi setup interface](assets/pi-setup.jpeg)
 
 Installation and verification are in [`SETUP.md`](SETUP.md). Architecture and
-safety details are in [`docs/features/subagents.md`](docs/features/subagents.md).
+safety details are in [`docs/features/subagents.md`](docs/features/subagents.md)
+and [`docs/features/background-terminals.md`](docs/features/background-terminals.md).

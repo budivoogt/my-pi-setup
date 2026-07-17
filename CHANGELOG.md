@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Enable session-scoped background terminals in the Pi package, keep their
+  routing policy in extension prompt metadata, and remove the redundant skill.
 - Hide subagent takeover reasoning by default while preserving `Ctrl+T` as an
   on-demand visibility toggle; tool results remain concise one-line previews.
 - Add pinned Claude role mappings through the Pi extension, including Sonnet 5

@@ -1,7 +1,8 @@
 # Setup
 
-Install the subagents extension and skill as a pinned Pi Git package. Replace
-`<commit-sha>` with the reviewed commit to install:
+Install the subagents and background-terminals extensions, plus the subagents
+skill, as a pinned Pi Git package. Replace `<commit-sha>` with the reviewed
+commit to install:
 
 ```sh
 pi install git:github.com/budivoogt/my-pi-setup@<commit-sha>
@@ -9,8 +10,8 @@ pi list
 ```
 
 Restart Pi or run `/reload`. The package manifest exposes only the subagents
-extension and skill; it does not enable the fork's other extensions, prompts,
-or themes.
+and background-terminals extensions and the subagents skill; it does not enable
+the fork's other extensions, prompts, skills, or themes.
 
 Pi 0.80.7 is the locally verified version. The package targets the
 `@earendil-works/pi-*` distribution used by this setup.

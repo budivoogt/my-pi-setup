@@ -3,6 +3,7 @@ import test from "node:test";
 import type { OutputView, TerminalSnapshot } from "./src/domain.ts";
 import {
   BG_START_PARAMETER_DESCRIPTIONS,
+  BG_START_PROMPT_GUIDELINES,
   BG_START_TOOL_DESCRIPTION,
   buildKillReport,
   buildStatusResult,
@@ -17,6 +18,13 @@ test("start descriptions identify the platform-specific shell contract", () => {
     BG_START_PARAMETER_DESCRIPTIONS.command,
     /cmd\.exe \/d \/s \/c on Windows/,
   );
+});
+
+test("start guidance routes durable or interactive processes to tmux", () => {
+  const guidance = BG_START_PROMPT_GUIDELINES.join("\n");
+  assert.match(guidance, /temporary, non-interactive/);
+  assert.match(guidance, /tmux/);
+  assert.match(guidance, /survive a Pi reload, session change, or exit/);
 });
 
 function view(overrides: Partial<OutputView> = {}): OutputView {

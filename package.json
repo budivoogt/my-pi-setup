@@ -6,7 +6,8 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions/subagents/index.ts"
+      "./extensions/subagents/index.ts",
+      "./extensions/background-terminals/index.ts"
     ],
     "skills": [
       "./skills/subagents/SKILL.md"
