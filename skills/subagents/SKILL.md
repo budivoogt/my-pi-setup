@@ -26,6 +26,7 @@ Pi can use any model shown by `pi --list-models`. Prefer `provider/model-id`; a 
 | inherited parent model (default) | inherited          |
 | `openai-codex/gpt-5.6-sol`       | `high`             |
 | `openai-codex/gpt-5.6-terra`     | `high`             |
+| `xai/grok-4.5`                    | `low` for editor, `medium` for bounded worker overrides |
 | `opencode/claude-fable-5`        | `medium`           |
 
 **Thinking budgets:** `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. These map directly to pi thinking levels.
@@ -45,6 +46,17 @@ Default role profiles are bundled with the extension. Files in
 instructions and an exact tool allowlist. They apply to Pi and Claude harnesses.
 By default, a role cannot set `working_dir` outside the parent's current
 directory.
+
+### Pi model routing
+
+- `editor` defaults to `xai/grok-4.5`/`low`. Keep its work small,
+  already-decided, low-risk, and mechanically verifiable. Escalate ambiguity
+  instead of increasing editor effort.
+- `worker` defaults to `openai-codex/gpt-5.6-terra`/`high`. Override it with
+  `xai/grok-4.5`/`medium` only for bounded implementation whose design,
+  acceptance criteria, deterministic validation, and rollback path are known.
+- Do not use Grok with `off` or `high` effort, and do not use Grok for
+  `reviewer`. Keep Sol/Fable as the reviewer models.
 
 ## Claude Code Harness
 

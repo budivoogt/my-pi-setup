@@ -49,10 +49,16 @@ instructions extend the child system prompt and role tools are passed to
 preset and Pi tool names are mapped to a strict Claude built-in allowlist.
 Backend denylists remove child orchestration and user-question tools.
 
-Bundled models intentionally mirror this setup's Codex CLI roles and fail fast
-when a configured provider/model is unavailable. The eight-agent cap is global
-across Pi, Claude, and Codex backends; it approximates Codex's thread setting
-rather than creating eight isolated operating-system sandboxes.
+Bundled models fail fast when a configured provider/model is unavailable. Pi
+uses Spark/high for explorer, Grok 4.5/low for editor, Terra/high for worker,
+Sol/xhigh for reviewer, and Luna/low for monitor. Low effort is a scope-appropriate
+editor default for small, already-decided, mechanically verifiable changes; an
+ambiguous edit should escalate rather than receive more editor reasoning.
+Grok 4.5/medium is an explicit worker override only for bounded implementation
+with a known design, deterministic validation, and a rollback path. Grok is not
+used with off/high effort or for review. The eight-agent cap is global across
+Pi, Claude, and Codex backends; it approximates Codex's thread setting rather
+than creating eight isolated operating-system sandboxes.
 
 Claude role defaults use exact IDs: `claude-haiku-4-5`/off for monitor,
 `claude-sonnet-5`/low for explorer, `claude-sonnet-5`/medium for editor,

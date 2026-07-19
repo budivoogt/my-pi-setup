@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Route Pi editor subagents to Grok 4.5/low, retain Terra/high as the default
+  worker, and document Grok 4.5/medium as a bounded-worker override while
+  excluding Grok off/high and reviewer use.
 - Enable session-scoped background terminals in the Pi package, keep their
   routing policy in extension prompt metadata, and remove the redundant skill.
 - Hide subagent takeover reasoning by default while preserving `Ctrl+T` as an

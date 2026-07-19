@@ -38,9 +38,11 @@ Optional keys are `model`, `reasoning_effort`, `claude_model`,
 false unless cross-repository work is intentional. Spawn arguments override a
 role's model and reasoning defaults.
 
-The packaged models mirror the local Codex CLI roles: Spark/high for explorer,
-Luna/medium for editor, Terra/high for worker, Sol/xhigh for reviewer, and
-Luna/low for monitor. Explicit spawn arguments still take precedence.
+The packaged Pi mapping is Spark/high for explorer, Grok 4.5/low for editor,
+Terra/high for worker, Sol/xhigh for reviewer, and Luna/low for monitor.
+Explicit spawn arguments still take precedence. Use Grok 4.5/medium as a worker
+override only for bounded, well-tested implementation with a known design and
+rollback path; do not use Grok with off/high effort or for reviewers.
 
 For the Claude harness, the packaged mapping is Haiku 4.5/off for monitor,
 Sonnet 5/low for explorer, Sonnet 5/medium for editor, Opus 4.8/high for worker,
