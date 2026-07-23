@@ -6,6 +6,9 @@ related: ""
 ---
 # Grok subagent routing
 
+## Status
+- Superseded for worker defaults by `docs/archived/2026-07-23-worker-model-defaults.md` (Grok medium is now the default Pi worker).
+
 ## Goal
 - Add Grok 4.5 where evaluation showed a useful speed/quality trade-off without weakening serious worker or reviewer defaults.
 

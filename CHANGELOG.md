@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Strong-worker defaults: Pi Grok 4.5/high, Claude Opus 4.8/high; editor remains the light path (no cheap-worker escalate tier).
+
+- Default Pi workers to Grok 4.5/medium and Claude workers to Sonnet 5/high;
+  escalate to Terra/high or Opus/high for ambiguous, high-risk, or failed-validation work.
+- Treat Grok high as red-team / same-family retry rather than default implementation effort.
+- Document native-for-native harness routing and top-model red-team panel seats.
+
 - Route Pi editor subagents to Grok 4.5/low, retain Terra/high as the default
   worker, and document Grok 4.5/medium as a bounded-worker override while
   excluding Grok off/high and reviewer use.

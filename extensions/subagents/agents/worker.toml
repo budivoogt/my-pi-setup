@@ -1,8 +1,8 @@
 name = "worker"
-description = "Bounded non-trivial implementation with normal coding tools"
-developer_instructions = "Implement the bounded task, keep changes within scope, verify behavior with relevant tests, and report exactly what changed. Do not delegate."
+description = "Strong default implementation agent for bounded non-trivial coding work"
+developer_instructions = "Implement the assigned task with full coding tools, keep changes within scope, verify with relevant tests, and report exactly what changed. Do not delegate. If requirements are ambiguous, the root cause is unknown, or the work needs product/architecture judgment beyond the brief, stop and return an escalate handoff to the parent instead of guessing."
 tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
-model = "openai-codex/gpt-5.6-terra"
+model = "xai/grok-4.5"
 reasoning_effort = "high"
 claude_model = "claude-opus-4-8"
 claude_reasoning_effort = "high"

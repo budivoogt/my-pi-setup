@@ -122,7 +122,7 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
     editor: ["xai/grok-4.5", "low", "claude-sonnet-5", "medium"],
     monitor: ["openai-codex/gpt-5.6-luna", "low", "claude-haiku-4-5", "off"],
     reviewer: ["openai-codex/gpt-5.6-sol", "xhigh", "claude-fable-5", "high"],
-    worker: ["openai-codex/gpt-5.6-terra", "high", "claude-opus-4-8", "high"],
+    worker: ["xai/grok-4.5", "high", "claude-opus-4-8", "high"],
   } as const;
   for (const [
     name,

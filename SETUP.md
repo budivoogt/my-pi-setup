@@ -39,16 +39,16 @@ false unless cross-repository work is intentional. Spawn arguments override a
 role's model and reasoning defaults.
 
 The packaged Pi mapping is Spark/high for explorer, Grok 4.5/low for editor,
-Terra/high for worker, Sol/xhigh for reviewer, and Luna/low for monitor.
-Explicit spawn arguments still take precedence. Use Grok 4.5/medium as a worker
-override only for bounded, well-tested implementation with a known design and
-rollback path; do not use Grok with off/high effort or for reviewers.
+Grok 4.5/high for worker, Sol/xhigh for reviewer, and Luna/low for monitor.
+Explicit spawn arguments still take precedence. Editor is the light path;
+worker is strong by default. Do not use Grok with off effort for worker/editor
+tasks, and do not use Grok as the authoritative reviewer.
 
 For the Claude harness, the packaged mapping is Haiku 4.5/off for monitor,
-Sonnet 5/low for explorer, Sonnet 5/medium for editor, Opus 4.8/high for worker,
-and Fable 5/high for reviewer. Claude Code must already be installed and signed
-in. The extension accepts only those four exact Claude model IDs, avoiding local
-alias overrides.
+Sonnet 5/low for explorer, Sonnet 5/medium for editor, Opus 4.8/high for
+worker, and Fable 5/high for reviewer. Claude Code must already be installed
+and signed in. The extension accepts only those exact Claude model IDs,
+avoiding local alias overrides.
 
 ## Full setup development
 
