@@ -1,5 +1,7 @@
 name = "worker"
 description = "Strong default implementation agent for bounded non-trivial coding work"
+# Claude-only: carries routing that exists only in Claude (editor/autoreview).
+claude_description = "Use proactively for non-trivial implementation with normal coding tools. Strong default worker (Opus/high). Use editor for tiny already-decided edits."
 developer_instructions = "Implement the assigned task with full coding tools, keep changes within scope, verify with relevant tests, and report exactly what changed. Do not delegate. If requirements are ambiguous, the root cause is unknown, or the work needs product/architecture judgment beyond the brief, stop and return an escalate handoff to the parent instead of guessing."
 tools = ["read", "bash", "edit", "write", "grep", "find", "ls"]
 model = "xai/grok-4.5"
