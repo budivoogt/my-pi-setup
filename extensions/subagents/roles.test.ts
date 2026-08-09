@@ -134,6 +134,7 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
     assert.equal(roles.get(name)?.claudeModel, claudeModel);
     assert.equal(roles.get(name)?.claudeReasoningEffort, claudeEffort);
   }
+  assert.deepEqual(roles.get("luna-explorer")?.tools, ["read", "grep", "find", "ls"]);
   assert.ok(fs.existsSync(path.join(BUNDLED_ROLES_DIR, "worker.toml")));
 });
 
