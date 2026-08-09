@@ -112,7 +112,7 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
   const roles = loadRoleProfiles(agentDir);
   assert.deepEqual(
     [...roles.keys()],
-    ["editor", "explorer", "monitor", "reviewer", "worker", "custom"],
+    ["editor", "explorer", "luna-explorer", "monitor", "reviewer", "worker", "custom"],
   );
   assert.equal(roles.get("explorer")?.model, undefined);
   assert.equal(roles.get("explorer")?.claudeModel, "claude-sonnet-5");
@@ -120,9 +120,10 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
 
   const expectedDefaults = {
     editor: ["xai/grok-4.5", "low", "claude-sonnet-5", "medium"],
+    "luna-explorer": ["openai-codex/gpt-5.6-luna", "medium", "claude-sonnet-5", "low"],
     monitor: ["openai-codex/gpt-5.6-luna", "low", "claude-haiku-4-5", "off"],
     reviewer: ["openai-codex/gpt-5.6-sol", "xhigh", "claude-fable-5", "high"],
-    worker: ["xai/grok-4.5", "high", "claude-opus-4-8", "high"],
+    worker: ["xai/grok-4.5", "high", "claude-opus-5", "high"],
   } as const;
   for (const [
     name,

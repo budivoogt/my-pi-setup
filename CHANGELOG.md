@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a dedicated read-only Luna/medium role for parents to select after a structured Spark quota or authentication failure; keep Pi editor routing on Grok/low and Claude Code exploration on Sonnet.
+- Align the stale worker-role test with the existing Claude Opus 5/high mapping.
+
 - Strong-worker defaults: Pi Grok 4.5/high, Claude Opus 4.8/high; editor remains the light path (no cheap-worker escalate tier).
 
 - Default Pi workers to Grok 4.5/medium and Claude workers to Sonnet 5/high;
