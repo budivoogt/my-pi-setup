@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Default Claude reviewer and backend paths to Opus 5/high, retain Fable 5 only for explicit model selection, and reject Anthropic child requests from non-Anthropic primary models.
 - Add a dedicated read-only Luna/medium role for parents to select after a structured Spark quota or authentication failure; keep Pi editor routing on Grok/low and Claude Code exploration on Sonnet.
 - Align the stale worker-role test with the existing Claude Opus 5/high mapping.
 

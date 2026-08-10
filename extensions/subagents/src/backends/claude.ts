@@ -42,11 +42,12 @@ const PREVIEW_MAX_LENGTH = 4_096;
 export const ALLOWED_CLAUDE_MODELS = [
   "claude-haiku-4-5",
   "claude-sonnet-5",
+  "claude-opus-5",
   "claude-opus-4-8",
   "claude-fable-5",
 ] as const;
 
-const DEFAULT_CLAUDE_MODEL = "claude-fable-5";
+const DEFAULT_CLAUDE_MODEL = "claude-opus-5";
 const allowedClaudeModels = new Set<string>(ALLOWED_CLAUDE_MODELS);
 
 // --- Binary resolution --------------------------------------------------------
@@ -183,21 +184,21 @@ export function claudeReasoningOptions(
   model: string,
   effort: ReasoningEffort | undefined,
 ) {
-  if (effort === undefined) return {};
-  if (effort === "off") {
+  const resolvedEffort = effort ?? "high";
+  if (resolvedEffort === "off") {
     return { thinking: { type: "disabled" as const } };
   }
   if (model === "claude-haiku-4-5") {
     return {
       thinking: {
         type: "enabled" as const,
-        budgetTokens: THINKING_BUDGETS[effort],
+        budgetTokens: THINKING_BUDGETS[resolvedEffort],
       },
     };
   }
   return {
     thinking: { type: "adaptive" as const },
-    effort: effort === "minimal" ? ("low" as const) : effort,
+    effort: resolvedEffort === "minimal" ? ("low" as const) : resolvedEffort,
   };
 }
 

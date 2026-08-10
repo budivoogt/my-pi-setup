@@ -45,10 +45,11 @@ worker is strong by default. Do not use Grok with off effort for worker/editor
 tasks, and do not use Grok as the authoritative reviewer.
 
 For the Claude harness, the packaged mapping is Haiku 4.5/off for monitor,
-Sonnet 5/low for explorer, Sonnet 5/medium for editor, Opus 4.8/high for
-worker, and Fable 5/high for reviewer. Claude Code must already be installed
-and signed in. The extension accepts only those exact Claude model IDs,
-avoiding local alias overrides.
+Sonnet 5/low for explorer, Sonnet 5/medium for editor, and Opus 5/high for
+worker and reviewer. Fable 5 requires explicit model selection. Claude Code
+must already be installed and signed in. The extension accepts only approved
+exact Claude model IDs, avoiding local alias overrides. Anthropic-family
+children require an Anthropic-family primary orchestration model.
 
 ## Full setup development
 

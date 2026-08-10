@@ -90,6 +90,39 @@ import { openSubagentPicker } from "./src/ui/takeover.ts";
 const SUBAGENT_OUTPUT_MAX_BYTES = 24 * 1024;
 const WAIT_OUTPUT_MAX_BYTES = 48 * 1024;
 const WAIT_PER_AGENT_MAX_BYTES = 16 * 1024;
+const ANTHROPIC_MODEL_FAMILY =
+  /(?:^|[\/_\-.])(claude|fable|opus|sonnet|haiku)(?=$|[\/_\-.])/i;
+
+export function isAnthropicFamilyModel(model: {
+  provider?: string;
+  id: string;
+}) {
+  return (
+    model.provider?.toLowerCase() === "anthropic" ||
+    ANTHROPIC_MODEL_FAMILY.test(`${model.provider ?? ""}/${model.id}`)
+  );
+}
+
+export function assertAnthropicChildRouting(options: {
+  parentModel?: { provider: string; id: string };
+  harness: string;
+  childModel?: string;
+}) {
+  const childIsAnthropic =
+    options.harness === "claude" ||
+    (options.childModel
+      ? isAnthropicFamilyModel({ id: options.childModel })
+      : false);
+  if (
+    !childIsAnthropic ||
+    isAnthropicFamilyModel(options.parentModel ?? { id: "" })
+  ) {
+    return;
+  }
+  throw new Error(
+    "Anthropic subagents require an Anthropic-family primary orchestration model. Switch the parent model before selecting a Claude, Fable, Opus, Sonnet, or Haiku child.",
+  );
+}
 
 function describeSubagent(snap: SubagentSnapshot) {
   const details = [
@@ -292,6 +325,14 @@ export default function (pi: ExtensionAPI) {
       const roleDefaults = role
         ? roleDefaultsForHarness(role, harness)
         : undefined;
+      const childModel = params.model ?? roleDefaults?.model;
+      assertAnthropicChildRouting({
+        parentModel: ctx.model
+          ? { provider: ctx.model.provider, id: ctx.model.id }
+          : undefined,
+        harness,
+        childModel,
+      });
 
       const requestedCwd = path.resolve(ctx.cwd, params.working_dir ?? ".");
       if (
@@ -311,7 +352,7 @@ export default function (pi: ExtensionAPI) {
           prompt: params.prompt,
           title,
           cwd,
-          model: params.model ?? roleDefaults?.model,
+          model: childModel,
           reasoningEffort:
             params.reasoning_effort ?? roleDefaults?.reasoningEffort,
           role: role ? roleForSpawn(role) : undefined,

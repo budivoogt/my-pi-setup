@@ -60,11 +60,16 @@ Codex backends; it approximates Codex's thread setting rather than creating eigh
 isolated operating-system sandboxes.
 
 Claude role defaults use exact IDs: `claude-haiku-4-5`/off for monitor,
-`claude-sonnet-5`/low for explorer, `claude-sonnet-5`/medium for editor,
-`claude-opus-4-8`/high for worker, and `claude-fable-5`/high for reviewer.
-These are the only Claude models accepted by the backend. Modern models use
-adaptive thinking plus the SDK's native effort control; Haiku uses fixed thinking
-only when explicitly enabled.
+`claude-sonnet-5`/low for explorer, `claude-sonnet-5`/medium for editor, and
+`claude-opus-5`/high for worker and reviewer. Fable 5 remains accepted only as
+an explicit model selection. Modern models use adaptive thinking plus the SDK's
+native effort control; Haiku uses fixed thinking only when explicitly enabled.
+
+The spawn boundary compares the requested child harness/model with the active
+parent provider/model. Anthropic-family children, including Claude-harness
+children and Pi children whose model name identifies Claude, Fable, Opus,
+Sonnet, or Haiku, require an Anthropic-family primary model. This is a strict
+runtime gate rather than prompt-only routing.
 
 Requested child directories are resolved through the filesystem before the cwd
 boundary check, so a symlink cannot silently change the child's initial cwd to

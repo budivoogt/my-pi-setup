@@ -41,10 +41,11 @@ Files in `~/.pi/agent/agents/*.toml` override bundled roles by role name.
 
 Claude roles use exact model IDs through the Claude Agent SDK and the installed
 Claude Code login: Haiku 4.5/off for monitor, Sonnet 5/low for explorer,
-Sonnet 5/medium for editor, Opus 4.8/high for worker, and Fable 5/high for
-reviewer. The Sonnet 5 levels use native adaptive effort rather than legacy
-fixed thinking-token budgets. Pi workers default to Grok 4.5/high; editors stay
-on Grok 4.5/low.
+Sonnet 5/medium for editor, and Opus 5/high for worker and reviewer. Fable 5 is
+available only through explicit model selection. Anthropic-family children
+require an Anthropic-family primary orchestration model. The Sonnet 5 levels
+use native adaptive effort rather than legacy fixed thinking-token budgets. Pi
+workers default to Grok 4.5/high; editors stay on Grok 4.5/low.
 
 The parent enforces an eight-child concurrency cap and Pi children cannot spawn
 more children. Role-based checks restrict the child's initial working directory

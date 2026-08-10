@@ -12,7 +12,7 @@ export const SUBAGENT_SPAWN_PROMPT_SNIPPET =
 export const SUBAGENT_SPAWN_PROMPT_GUIDELINES = [
   "Use subagent_spawn to delegate self-contained tasks that can run in the background; give it a complete, standalone prompt.",
   "For pi and Claude children, select the narrowest role that fits: explorer/reviewer for read-only work, editor for localized edits, worker for implementation, monitor for long commands.",
-  "Pick the subagent harness deliberately: pi unless you have a reason to prefer Claude Code or Codex (e.g. the user asked for one, or the task suits that harness).",
+  "Pick the subagent harness deliberately. Anthropic-family parents may use Claude Code; non-Anthropic parents must use Pi or Codex with non-Anthropic child models.",
   "After subagent_spawn, keep working; results arrive automatically. Only call subagent_wait when you cannot proceed without the result.",
 ];
 

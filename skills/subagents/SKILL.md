@@ -10,6 +10,8 @@ Each subagent is headless, has its own context window, cannot see the parent con
 Keep synthesis and final decisions in the parent. Spawn independent work early,
 continue useful parent work, and wait only when the next step depends on the
 child. Give concurrent writers non-overlapping ownership or separate worktrees.
+Anthropic-family children require an Anthropic-family primary orchestration
+model; the extension rejects cross-provider Anthropic child requests.
 
 ## Pi Harness
 
@@ -27,7 +29,6 @@ Pi can use any model shown by `pi --list-models`. Prefer `provider/model-id`; a 
 | `openai-codex/gpt-5.6-sol`       | `high`                                                                                                         |
 | `openai-codex/gpt-5.6-terra`     | `high`                                                                                                         |
 | `xai/grok-4.5`                   | `low` for editor, `high` for default worker; also used at `high` in red-team panels (role distinguishes intent) |
-| `opencode/claude-fable-5`        | `medium`                                                                                                       |
 
 **Thinking budgets:** `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. These map directly to pi thinking levels.
 
@@ -56,7 +57,7 @@ directory.
   strong coding still uses Terra/Sol on the Codex harness; Claude-native strong
   coding uses Opus on the Claude harness.
 - Do not use Grok with `off` for worker/editor tasks, and do not use Grok as the
-  authoritative `reviewer`. Keep Sol/Fable as default reviewer models.
+  authoritative `reviewer`. Use Sol for Pi reviewers and Opus 5 for Claude-native reviewers.
 - Grok always runs on the Pi harness. Do not expect Codex CLI native agents to
   host Grok.
 
@@ -69,8 +70,8 @@ replace parent synthesis or `autoreview` PR closeout.
 Prefer a top-model panel when red-team is warranted (explicit request, contested
 high-risk work, or weak/uncertain review), ideally in parallel:
 - `openai-codex/gpt-5.6-sol` / `xhigh`
-- Claude `claude-fable-5` / `high` (Claude harness or one-shot)
 - `xai/grok-4.5` / `high` on Pi
+- Claude `claude-opus-5` / `high` only when the parent is Anthropic-family
 
 Label outputs as additional perspectives. Do not infer a full panel from a
 generic request for review. Grok `high` is allowed for the normal Pi `worker`
@@ -88,15 +89,16 @@ only when there is a specific reason to override the mapping.
 | `monitor`  | `claude-haiku-4-5` | `off`    |
 | `explorer` | `claude-sonnet-5`  | `low`    |
 | `editor`   | `claude-sonnet-5`  | `medium` |
-| `worker`   | `claude-opus-4-8`  | `high`   |
-| `reviewer` | `claude-fable-5`   | `high`   |
+| `worker`   | `claude-opus-5`    | `high`   |
+| `reviewer` | `claude-opus-5`    | `high`   |
 
-Only those four exact Claude model IDs are accepted. Do not use aliases such as
-`haiku` or `sonnet`; local Claude settings can redirect aliases. Sonnet, Opus,
+Only approved exact Claude model IDs are accepted. Do not use aliases such as
+`haiku` or `sonnet`; local Claude settings can redirect aliases. Fable 5 remains
+available only when the user explicitly selects `claude-fable-5`. Sonnet, Opus,
 and Fable use adaptive thinking with the SDK's native effort level. Haiku uses
 fixed thinking budgets only when reasoning is explicitly enabled.
 
-Claude worker defaults to Opus 4.8/high. Use Sonnet only for explorer/editor
+Claude worker and reviewer default to Opus 5/high. Use Sonnet only for explorer/editor
 roles, not as the default implementation worker.
 
 Requires Claude Code to be installed and authenticated. It uses the existing

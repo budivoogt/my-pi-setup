@@ -11,12 +11,21 @@ test("Claude models are pinned to the approved exact IDs", () => {
   assert.deepEqual(ALLOWED_CLAUDE_MODELS, [
     "claude-haiku-4-5",
     "claude-sonnet-5",
+    "claude-opus-5",
     "claude-opus-4-8",
     "claude-fable-5",
   ]);
-  assert.equal(resolveClaudeModel(undefined), "claude-fable-5");
+  assert.equal(resolveClaudeModel(undefined), "claude-opus-5");
   assert.equal(resolveClaudeModel("claude-sonnet-5"), "claude-sonnet-5");
+  assert.equal(resolveClaudeModel("claude-fable-5"), "claude-fable-5");
   assert.throws(() => resolveClaudeModel("sonnet"), /Unsupported Claude model/);
+});
+
+test("omitted Claude effort defaults to high adaptive thinking", () => {
+  assert.deepEqual(claudeReasoningOptions("claude-opus-5", undefined), {
+    thinking: { type: "adaptive" },
+    effort: "high",
+  });
 });
 
 test("Sonnet 5 low uses native adaptive effort", () => {
