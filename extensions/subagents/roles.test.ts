@@ -22,6 +22,7 @@ import {
   roleDefaultsForHarness,
   roleForSpawn,
 } from "./src/roles.ts";
+import { piProviderRequestOptions } from "./src/backends/pi.ts";
 
 const validRole = `
 name = "explorer"
@@ -29,6 +30,7 @@ description = "Read-only repository exploration"
 developer_instructions = "Locate evidence and do not edit files."
 tools = ["read", "grep", "find", "ls", "read"]
 reasoning_effort = "high"
+service_tier = "fast"
 claude_model = "claude-sonnet-5"
 claude_reasoning_effort = "low"
 `;
@@ -37,6 +39,7 @@ test("parses and normalizes a role profile", () => {
   const role = parseRoleProfile(validRole, "/roles/explorer.toml");
   assert.equal(role.name, "explorer");
   assert.equal(role.reasoningEffort, "high");
+  assert.equal(role.serviceTier, "fast");
   assert.equal(role.claudeModel, "claude-sonnet-5");
   assert.equal(role.claudeReasoningEffort, "low");
   assert.deepEqual(role.tools, ["read", "grep", "find", "ls"]);
@@ -73,6 +76,14 @@ test("rejects malformed and invalid role profiles with their source path", () =>
         "/roles/explorer.toml",
       ),
     /claude_reasoning_effort.*must be one of/,
+  );
+  assert.throws(
+    () =>
+      parseRoleProfile(
+        validRole.replace('service_tier = "fast"', 'service_tier = "slow"'),
+        "/roles/explorer.toml",
+      ),
+    /service_tier.*must be one of/,
   );
 });
 
@@ -112,42 +123,88 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
   const roles = loadRoleProfiles(agentDir);
   assert.deepEqual(
     [...roles.keys()],
-    ["editor", "explorer", "luna-explorer", "monitor", "reviewer", "worker", "custom"],
+    [
+      "editor",
+      "explorer",
+      "luna-explorer",
+      "monitor",
+      "reviewer",
+      "worker",
+      "custom",
+    ],
   );
   assert.equal(roles.get("explorer")?.model, undefined);
   assert.equal(roles.get("explorer")?.claudeModel, "claude-sonnet-5");
   assert.equal(roles.get("custom")?.name, "custom");
 
   const expectedDefaults = {
-    editor: ["xai/grok-4.5", "low", "claude-sonnet-5", "medium"],
-    "luna-explorer": ["openai-codex/gpt-5.6-luna", "medium", "claude-sonnet-5", "low"],
-    monitor: ["openai-codex/gpt-5.6-luna", "low", "claude-haiku-4-5", "off"],
-    reviewer: ["openai-codex/gpt-5.6-sol", "xhigh", "claude-fable-5", "high"],
-    worker: ["xai/grok-4.5", "high", "claude-opus-5", "high"],
+    editor: ["xai/grok-4.6", "low", undefined, "claude-sonnet-5", "medium"],
+    "luna-explorer": [
+      "openai-codex/gpt-5.6-luna",
+      "medium",
+      "fast",
+      "claude-sonnet-5",
+      "low",
+    ],
+    monitor: [
+      "openai-codex/gpt-5.6-luna",
+      "low",
+      "fast",
+      "claude-haiku-4-5",
+      "off",
+    ],
+    reviewer: [
+      "openai-codex/gpt-5.6-sol",
+      "xhigh",
+      undefined,
+      "claude-fable-5",
+      "high",
+    ],
+    worker: ["xai/grok-4.6", "medium", undefined, "claude-opus-5", "high"],
   } as const;
   for (const [
     name,
-    [model, effort, claudeModel, claudeEffort],
+    [model, effort, serviceTier, claudeModel, claudeEffort],
   ] of Object.entries(expectedDefaults)) {
     assert.equal(roles.get(name)?.model, model);
     assert.equal(roles.get(name)?.reasoningEffort, effort);
+    assert.equal(roles.get(name)?.serviceTier, serviceTier);
     assert.equal(roles.get(name)?.claudeModel, claudeModel);
     assert.equal(roles.get(name)?.claudeReasoningEffort, claudeEffort);
   }
-  assert.deepEqual(roles.get("luna-explorer")?.tools, ["read", "grep", "find", "ls"]);
+  assert.deepEqual(roles.get("luna-explorer")?.tools, [
+    "read",
+    "grep",
+    "find",
+    "ls",
+  ]);
   assert.ok(fs.existsSync(path.join(BUNDLED_ROLES_DIR, "worker.toml")));
 });
 
-test("bundled explorer maps Pi to Spark and Claude to Sonnet 5 low", () => {
+test("bundled explorer maps Pi to Luna high fast and Claude to Sonnet 5 low", () => {
   const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-defaults-"));
   const explorer = loadRoleProfiles(agentDir).get("explorer");
-  assert.equal(explorer?.model, "openai-codex/gpt-5.3-codex-spark");
+  assert.equal(explorer?.model, "openai-codex/gpt-5.6-luna");
   assert.equal(explorer?.reasoningEffort, "high");
+  assert.equal(explorer?.serviceTier, "fast");
+  assert.deepEqual(roleDefaultsForHarness(explorer!, "pi"), {
+    model: "openai-codex/gpt-5.6-luna",
+    reasoningEffort: "high",
+    serviceTier: "fast",
+  });
   assert.deepEqual(roleDefaultsForHarness(explorer!, "claude"), {
     model: "claude-sonnet-5",
     reasoningEffort: "low",
   });
   assert.deepEqual(explorer?.tools, ["read", "grep", "find", "ls"]);
+});
+
+test("maps the Pi fast role tier only for the effective OpenAI Codex provider", () => {
+  assert.deepEqual(piProviderRequestOptions("fast", "openai-codex"), {
+    serviceTier: "priority",
+  });
+  assert.deepEqual(piProviderRequestOptions("fast", "xai"), {});
+  assert.deepEqual(piProviderRequestOptions(undefined, "openai-codex"), {});
 });
 
 test("roles are confined to the parent cwd unless explicitly allowed", () => {

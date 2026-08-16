@@ -27,20 +27,24 @@ name = "explorer"
 description = "Narrow read-only repository exploration"
 developer_instructions = "Locate evidence with file paths. Do not edit."
 tools = ["read", "grep", "find", "ls"]
-model = "openai-codex/gpt-5.3-codex-spark"
+model = "openai-codex/gpt-5.6-luna"
 reasoning_effort = "high"
+service_tier = "fast"
 claude_model = "claude-sonnet-5"
 claude_reasoning_effort = "low"
 ```
 
-Optional keys are `model`, `reasoning_effort`, `claude_model`,
+Optional keys are `model`, `reasoning_effort`, `service_tier`, `claude_model`,
 `claude_reasoning_effort`, and `allow_outside_parent_cwd`. Keep the last option
 false unless cross-repository work is intentional. Spawn arguments override a
-role's model and reasoning defaults.
+role's model and reasoning defaults. `service_tier = "fast"` is a Pi-only role
+default, mapped to `priority` only when the effective request provider is
+`openai-codex`; non-OpenAI model overrides ignore it.
 
-The packaged Pi mapping is Spark/high for explorer, Grok 4.5/low for editor,
-Grok 4.5/high for worker, Sol/xhigh for reviewer, and Luna/low for monitor.
-Explicit spawn arguments still take precedence. Editor is the light path;
+The packaged Pi mapping is Luna/high/Fast for explorer, Luna/medium/Fast for
+luna-explorer, Luna/low/Fast for monitor, Grok 4.6/low for editor, Grok
+4.6/medium for worker, and Sol/xhigh for reviewer. Explicit spawn arguments
+still take precedence for model and reasoning effort. Editor is the light path;
 worker is strong by default. Do not use Grok with off effort for worker/editor
 tasks, and do not use Grok as the authoritative reviewer.
 

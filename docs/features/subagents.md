@@ -3,6 +3,7 @@ summary: "Persistent role-driven subagent architecture"
 read_when: "changing subagent tools, roles, lifecycle, or backends"
 owner: "@budivoogt"
 ---
+
 # Persistent subagents
 
 ## User-visible behavior
@@ -40,7 +41,9 @@ Role defaults are bundled under `extensions/subagents/agents/`. User TOML
 files under `~/.pi/agent/agents/` override bundled profiles by role name. Each
 profile requires `name`, `description`, `developer_instructions`, and a
 non-empty `tools` array. Optional fields are `model`, `reasoning_effort`,
-`claude_model`, `claude_reasoning_effort`, and `allow_outside_parent_cwd`.
+Pi-only `service_tier`, `claude_model`, `claude_reasoning_effort`, and
+`allow_outside_parent_cwd`. The only service-tier contract is `fast`, which Pi
+maps to `priority` only when the effective request provider is `openai-codex`.
 
 The tool layer resolves roles for Pi and Claude before spawn. User-supplied
 model and effort values override the selected harness defaults. For Pi, role
@@ -50,14 +53,16 @@ preset and Pi tool names are mapped to a strict Claude built-in allowlist.
 Backend denylists remove child orchestration and user-question tools.
 
 Bundled models fail fast when a configured provider/model is unavailable. Pi
-uses Spark/high for explorer, Grok 4.5/low for editor, Grok 4.5/high for
-worker, Sol/xhigh for reviewer, and Luna/low for monitor. Low effort is a
-scope-appropriate editor default for small, already-decided, mechanically
-verifiable changes; non-trivial implementation should use `worker` rather than
-raising editor effort. Worker is strong by default. Grok is not the
-authoritative reviewer. The eight-agent cap is global across Pi, Claude, and
-Codex backends; it approximates Codex's thread setting rather than creating eight
-isolated operating-system sandboxes.
+uses Luna/high/Fast for explorer, Luna/medium/Fast for luna-explorer,
+Luna/low/Fast for monitor, Grok 4.6/low for editor, Grok 4.6/medium for worker,
+and Sol/xhigh for reviewer. Fast is applied only by the Pi backend, where it
+becomes the provider request's `serviceTier: "priority"`; non-OpenAI Pi model
+overrides ignore it, and Claude and Codex do not receive it. Low effort is a scope-appropriate editor default for small,
+already-decided, mechanically verifiable changes; non-trivial implementation
+should use `worker` rather than raising editor effort. Worker is strong by
+default. Grok is not the authoritative reviewer. The eight-agent cap is global
+across Pi, Claude, and Codex backends; it approximates Codex's thread setting
+rather than creating eight isolated operating-system sandboxes.
 
 Claude role defaults use exact IDs: `claude-haiku-4-5`/off for monitor,
 `claude-sonnet-5`/low for explorer, `claude-sonnet-5`/medium for editor,

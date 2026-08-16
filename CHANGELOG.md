@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Route Pi explorer, luna-explorer, and monitor through Luna with the Fast
+  service tier; update Pi editor and worker defaults to Grok 4.6 at low and
+  medium effort respectively.
+- Add typed Pi-only role service-tier support, mapping `fast` to the provider's
+  compatible `priority` request value.
 - Add a dedicated read-only Luna/medium role for parents to select after a structured Spark quota or authentication failure; keep Pi editor routing on Grok/low and Claude Code exploration on Sonnet.
 - Align the stale worker-role test with the existing Claude Opus 5/high mapping.
 

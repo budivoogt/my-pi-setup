@@ -21,13 +21,14 @@ Do not use models from the Anthropic provider even if one appears in the model l
 
 Pi can use any model shown by `pi --list-models`. Prefer `provider/model-id`; a bare model id only works when unambiguous. Common picks in this environment:
 
-| Model                            | Recommended effort                                                                                             |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| inherited parent model (default) | inherited                                                                                                      |
-| `openai-codex/gpt-5.6-sol`       | `high`                                                                                                         |
-| `openai-codex/gpt-5.6-terra`     | `high`                                                                                                         |
-| `xai/grok-4.5`                   | `low` for editor, `high` for default worker; also used at `high` in red-team panels (role distinguishes intent) |
-| `opencode/claude-fable-5`        | `medium`                                                                                                       |
+| Model                            | Recommended effort                                                    |
+| -------------------------------- | --------------------------------------------------------------------- |
+| inherited parent model (default) | inherited                                                             |
+| `openai-codex/gpt-5.6-sol`       | `high`                                                                |
+| `openai-codex/gpt-5.6-terra`     | `high`                                                                |
+| `openai-codex/gpt-5.6-luna`      | `high` explorer, `medium` luna-explorer, `low` monitor, all with Fast |
+| `xai/grok-4.6`                   | `low` for editor, `medium` for default worker                         |
+| `opencode/claude-fable-5`        | `medium`                                                              |
 
 **Thinking budgets:** `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. These map directly to pi thinking levels.
 
@@ -36,6 +37,7 @@ Pi can use any model shown by `pi --list-models`. Prefer `provider/model-id`; a 
 Select the narrowest role that fits. Omit `role` to use `worker`.
 
 - `explorer`: locate files, symbols, and evidence with read-only tools.
+- `luna-explorer`: handle bounded secondary research with read-only tools.
 - `reviewer`: independently review risks and missing tests with read-only tools.
 - `editor`: apply a small, already-decided edit without shell access.
 - `worker`: implement a bounded task with normal coding tools.
@@ -49,10 +51,14 @@ directory.
 
 ### Pi model routing
 
-- `editor` defaults to `xai/grok-4.5`/`low`. Keep its work small,
+- `explorer` defaults to `openai-codex/gpt-5.6-luna`/`high`/Fast;
+  `luna-explorer` uses Luna/`medium`/Fast and `monitor` uses Luna/`low`/Fast.
+  Fast maps to `priority` only when the effective Pi request provider is
+  `openai-codex`; non-OpenAI model overrides ignore it.
+- `editor` defaults to `xai/grok-4.6`/`low`. Keep its work small,
   already-decided, low-risk, and mechanically verifiable. If the edit is not
   already decided, use `worker` instead of raising editor effort.
-- `worker` defaults to `xai/grok-4.5`/`high` (strong default). Codex-native
+- `worker` defaults to `xai/grok-4.6`/`medium` (strong default). Codex-native
   strong coding still uses Terra/Sol on the Codex harness; Claude-native strong
   coding uses Opus on the Claude harness.
 - Do not use Grok with `off` for worker/editor tasks, and do not use Grok as the
@@ -68,9 +74,10 @@ replace parent synthesis or `autoreview` PR closeout.
 
 Prefer a top-model panel when red-team is warranted (explicit request, contested
 high-risk work, or weak/uncertain review), ideally in parallel:
+
 - `openai-codex/gpt-5.6-sol` / `xhigh`
 - Claude `claude-fable-5` / `high` (Claude harness or one-shot)
-- `xai/grok-4.5` / `high` on Pi
+- `xai/grok-4.6` / `high` on Pi
 
 Label outputs as additional perspectives. Do not infer a full panel from a
 generic request for review. Grok `high` is allowed for the normal Pi `worker`
@@ -110,12 +117,11 @@ Claude Code login and does not require changes to Claude's configuration.
 Use native OpenAI models on the Codex harness. For Grok, spawn a Pi child
 instead of pretending Codex hosts xAI.
 
-| Model                 | Recommended effort | Typical role |
-| --------------------- | ------------------ | ------------ |
-| `gpt-5.3-codex-spark` | `high`             | explorer     |
-| `gpt-5.6-luna`        | `low`/`medium`     | monitor/editor |
-| `gpt-5.6-terra`       | `high`             | Codex-native / Pi-alternative strong worker |
-| `gpt-5.6-sol`         | `high`/`xhigh`     | reviewer / parent judgment |
+| Model           | Recommended effort    | Typical role                                |
+| --------------- | --------------------- | ------------------------------------------- |
+| `gpt-5.6-luna`  | `low`/`medium`/`high` | Pi explorer, luna-explorer, monitor         |
+| `gpt-5.6-terra` | `high`                | Codex-native / Pi-alternative strong worker |
+| `gpt-5.6-sol`   | `high`/`xhigh`        | reviewer / parent judgment                  |
 
 **Thinking budgets accepted by the extension:** `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Codex maps these to the nearest effort supported by the selected model; `off`/`minimal` become `minimal`, while `max` becomes the highest extension-supported Codex effort.
 

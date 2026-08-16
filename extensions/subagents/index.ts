@@ -314,6 +314,7 @@ export default function (pi: ExtensionAPI) {
           model: params.model ?? roleDefaults?.model,
           reasoningEffort:
             params.reasoning_effort ?? roleDefaults?.reasoningEffort,
+          serviceTier: roleDefaults?.serviceTier,
           role: role ? roleForSpawn(role) : undefined,
           parent: {
             parentCwd: ctx.cwd,
