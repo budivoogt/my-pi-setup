@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 import { parse } from "smol-toml";
 import {
   REASONING_EFFORTS,
+  SERVICE_TIERS,
   type ReasoningEffort,
+  type ServiceTier,
   type SpawnTask,
 } from "./domain.ts";
 
@@ -15,6 +17,7 @@ export interface RoleProfile {
   readonly tools: ReadonlyArray<string>;
   readonly model?: string;
   readonly reasoningEffort?: ReasoningEffort;
+  readonly serviceTier?: ServiceTier;
   readonly claudeModel?: string;
   readonly claudeReasoningEffort?: ReasoningEffort;
   readonly allowOutsideParentCwd: boolean;
@@ -24,6 +27,7 @@ export interface RoleProfile {
 type TomlRecord = Record<string, unknown>;
 
 const reasoningEfforts = new Set<string>(REASONING_EFFORTS);
+const serviceTiers = new Set<string>(SERVICE_TIERS);
 export const BUNDLED_ROLES_DIR = fileURLToPath(
   new URL("../agents", import.meta.url),
 );
@@ -77,6 +81,17 @@ export function parseRoleProfile(source: string, sourcePath: string) {
     );
   }
 
+  const serviceTier = optionalString(
+    value.service_tier,
+    "service_tier",
+    sourcePath,
+  );
+  if (serviceTier !== undefined && !serviceTiers.has(serviceTier)) {
+    throw new Error(
+      `${sourcePath}: "service_tier" must be one of ${SERVICE_TIERS.join(", ")}.`,
+    );
+  }
+
   const claudeEffort = optionalString(
     value.claude_reasoning_effort,
     "claude_reasoning_effort",
@@ -106,6 +121,7 @@ export function parseRoleProfile(source: string, sourcePath: string) {
     tools: stringArray(value.tools, "tools", sourcePath),
     model: optionalString(value.model, "model", sourcePath),
     reasoningEffort: effort as ReasoningEffort | undefined,
+    serviceTier: serviceTier as ServiceTier | undefined,
     claudeModel: optionalString(value.claude_model, "claude_model", sourcePath),
     claudeReasoningEffort: claudeEffort as ReasoningEffort | undefined,
     allowOutsideParentCwd: allowOutside === true,
@@ -121,6 +137,7 @@ export function roleDefaultsForHarness(
     return {
       model: profile.model,
       reasoningEffort: profile.reasoningEffort,
+      serviceTier: profile.serviceTier,
     };
   }
   if (harness === "claude") {

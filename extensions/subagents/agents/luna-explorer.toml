@@ -1,8 +1,9 @@
 name = "luna-explorer"
-description = "Read-only Luna fallback when the Spark explorer is unavailable"
-developer_instructions = "Use this role only after a structured Spark authentication, entitlement, quota, capacity, or rate-limit failure. Locate evidence and return concise conclusions with paths. Do not edit files or broaden the task."
+description = "Read-only Luna explorer for bounded secondary research"
+developer_instructions = "Locate evidence and return concise conclusions with paths. Do not edit files or broaden the task."
 tools = ["read", "grep", "find", "ls"]
 model = "openai-codex/gpt-5.6-luna"
 reasoning_effort = "medium"
+service_tier = "fast"
 claude_model = "claude-sonnet-5"
 claude_reasoning_effort = "low"

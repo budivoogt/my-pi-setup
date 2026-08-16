@@ -30,6 +30,7 @@ import { Effect, Queue, Stream } from "effect";
 import type { SubagentBackend, SubagentSession } from "../backend.ts";
 import type {
   SpawnTask,
+  ServiceTier,
   SubagentEvent,
   SubagentMeta,
   TranscriptPart,
@@ -43,6 +44,17 @@ import {
 
 const CHILD_SHUTDOWN_TIMEOUT_MS = 5_000;
 const CHILD_TOOL_CALL_TIMEOUT_MS = 3 * 60 * 1_000;
+
+/** Pi/OpenAI accepts `priority` for the role contract's `fast` service class. */
+export function piProviderRequestOptions(
+  serviceTier: ServiceTier | undefined,
+  provider: string,
+) {
+  if (serviceTier === "fast" && provider === "openai-codex") {
+    return { serviceTier: "priority" } as const;
+  }
+  return {};
+}
 
 /** Tools that headless children must not receive. Everything else stays enabled. */
 export const CHILD_EXCLUDED_TOOL_NAMES = [
@@ -373,6 +385,17 @@ const makePiSession = (
           tools: task.role ? [...task.role.tools] : undefined,
           excludeTools: [...CHILD_EXCLUDED_TOOL_NAMES],
         });
+        if (task.serviceTier) {
+          const stream = session.agent.streamFn.bind(session.agent);
+          session.agent.streamFn = (requestModel, context, options) =>
+            stream(requestModel, context, {
+              ...options,
+              ...piProviderRequestOptions(
+                task.serviceTier,
+                requestModel.provider,
+              ),
+            });
+        }
         // Start child extension session hooks/resources in headless mode.
         // A rejection here would otherwise leak the freshly created session:
         // the scope finalizer that owns cleanup is only registered later.

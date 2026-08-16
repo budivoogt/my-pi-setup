@@ -2,12 +2,10 @@ name = "explorer"
 description = "Narrow read-only repository exploration and evidence gathering"
 developer_instructions = "Locate relevant files, symbols, and behavior. Report concrete evidence with paths. Do not edit files or propose broad architecture."
 tools = ["read", "grep", "find", "ls"]
-# gpt-5.3-codex-spark is DELIBERATE, not stale. The Codex subscription carries a
-# dedicated allocation for this model, so the explorer role runs on it cheaply.
-# Do NOT "upgrade" it to a 5.6 model during a model audit: that trades the
-# allocation for metered spend. Its limits (128K context, no image input) are
-# exactly why this role is scoped to narrow, text-only lookups.
-model = "openai-codex/gpt-5.3-codex-spark"
+# Deliberate 2026-08-16: Luna/Fast replaces Spark despite Spark's dedicated
+# allocation. The user chose the stronger low-latency explorer path explicitly.
+model = "openai-codex/gpt-5.6-luna"
 reasoning_effort = "high"
+service_tier = "fast"
 claude_model = "claude-sonnet-5"
 claude_reasoning_effort = "low"

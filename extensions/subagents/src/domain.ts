@@ -30,6 +30,10 @@ export const REASONING_EFFORTS = [
 ] as const;
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
+/** Role-level service classes. Backends map these to provider-specific values. */
+export const SERVICE_TIERS = ["fast"] as const;
+export type ServiceTier = (typeof SERVICE_TIERS)[number];
+
 export type SubagentStatus = "running" | "done" | "error";
 
 /** Parent-session context resolved by the tool layer and passed opaquely. */
@@ -55,6 +59,8 @@ export interface SpawnTask {
   readonly model?: string;
   /** Shared effort scale; each backend maps it to its native equivalent. */
   readonly reasoningEffort?: ReasoningEffort;
+  /** Role-level service class, supported only by the Pi backend. */
+  readonly serviceTier?: ServiceTier;
   /** Durable child role resolved by the parent tool layer. */
   readonly role?: {
     readonly name: string;
