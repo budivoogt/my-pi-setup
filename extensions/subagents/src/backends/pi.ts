@@ -376,7 +376,9 @@ const makePiSession = (
         );
         const { session } = await createAgentSession({
           cwd: task.cwd,
-          sessionManager: SessionManager.create(task.cwd),
+          sessionManager: task.persistent
+            ? SessionManager.create(task.cwd)
+            : SessionManager.inMemory(task.cwd),
           settingsManager,
           resourceLoader: loader,
           modelRegistry: registry,

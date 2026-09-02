@@ -97,6 +97,11 @@ function describeSubagent(snap: SubagentSnapshot) {
     formatContextUtilization(snap.usage),
     formatElapsed(snap),
     snap.role ? `role: ${snap.role}` : undefined,
+    snap.sessionAvailable
+      ? snap.persistent
+        ? "persistent"
+        : "disposable"
+      : "session released",
     snap.cwd,
   ].filter(Boolean);
   return `${snap.id} [${snap.status}] "${snap.title}" (${details.join(", ")})`;
@@ -273,6 +278,11 @@ export default function (pi: ExtensionAPI) {
           description: SUBAGENT_SPAWN_PARAMETER_DESCRIPTIONS.reasoningEffort,
         }),
       ),
+      persistent: Type.Optional(
+        Type.Boolean({
+          description: SUBAGENT_SPAWN_PARAMETER_DESCRIPTIONS.persistent,
+        }),
+      ),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const manager = await getManager();
@@ -315,6 +325,7 @@ export default function (pi: ExtensionAPI) {
           reasoningEffort:
             params.reasoning_effort ?? roleDefaults?.reasoningEffort,
           serviceTier: roleDefaults?.serviceTier,
+          persistent: params.persistent,
           role: role ? roleForSpawn(role) : undefined,
           parent: {
             parentCwd: ctx.cwd,
@@ -343,6 +354,7 @@ export default function (pi: ExtensionAPI) {
               modelLabel: snap.meta.modelLabel ?? "?",
               cwd,
               role: snap.role,
+              persistent: snap.persistent,
             }),
           },
         ],
@@ -518,7 +530,9 @@ export default function (pi: ExtensionAPI) {
           {
             type: "text",
             text: result.cancelled
-              ? `Interrupted ${result.id} "${result.title}". The session remains available for subagent_send.`
+              ? snap.persistent
+                ? `Interrupted ${result.id} "${result.title}". The session remains available for subagent_send.`
+                : `Interrupted ${result.id} "${result.title}". Its disposable Pi session was released.`
               : `${result.id} "${result.title}" was already ${result.status}.`,
           },
         ],

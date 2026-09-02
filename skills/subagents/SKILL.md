@@ -129,16 +129,17 @@ Requires the Codex CLI to be installed and authenticated.
 
 ## Spawn and Manage
 
-Call `subagent_spawn` with a complete `prompt`, short `name`, chosen `harness`, and optional `role`, `working_dir`, `model`, and `reasoning_effort`. At most eight subagents run concurrently.
+Call `subagent_spawn` with a complete `prompt`, short `name`, chosen `harness`, and optional `role`, `working_dir`, `model`, `reasoning_effort`, and `persistent`. At most eight subagents run concurrently. Pi children are disposable by default. Set `persistent: true` only when a Pi child must accept another turn or support takeover after it settles. Claude and Codex keep persistent sessions.
 
 - `subagent_check({ id })`: peek without blocking.
 - `subagent_list()`: list all runs.
 - `subagent_wait({ ids })`: block only when results are required to proceed.
 - `subagent_send({ id, message })`: steer a running child or start another turn in the same idle session.
-- `subagent_interrupt({ id })`: abort the active turn but keep the persistent session.
+- `subagent_interrupt({ id })`: abort the active turn. Persistent sessions remain available; disposable Pi sessions release after settlement.
 - `subagent_cancel({ ids })`: compatibility form for interrupting several children.
 - `subagent_close({ id })`: permanently dispose and remove a child.
 - `/subagents`: inspect or take over a run interactively.
 
 Results return automatically and explicit waits suppress duplicate delivery.
-Close idle children when their persistent context is no longer useful.
+Keep high-churn retrieval and research Pi workers disposable. Close persistent
+children when their context is no longer useful.

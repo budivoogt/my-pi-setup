@@ -42,6 +42,8 @@ test("subagent transcripts hide reasoning by default and reveal it on demand", (
     title: "explore",
     prompt: "inspect",
     cwd: "/workspace",
+    persistent: true,
+    sessionAvailable: true,
     status: "done",
     createdAt: 0,
     meta: { backend: "claude" },

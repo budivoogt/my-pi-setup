@@ -29,6 +29,26 @@ test("registers the complete Codex-style lifecycle tool surface", () => {
   ]);
 });
 
+test("subagent_spawn exposes the explicit persistent-child choice", () => {
+  let spawnTool:
+    { parameters?: { properties?: Record<string, unknown> } } | undefined;
+  const api = {
+    on() {},
+    registerTool(tool: {
+      name: string;
+      parameters?: { properties?: Record<string, unknown> };
+    }) {
+      if (tool.name === "subagent_spawn") spawnTool = tool;
+    },
+    registerMessageRenderer() {},
+    registerCommand() {},
+  } as unknown as ExtensionAPI;
+
+  subagentsExtension(api);
+
+  assert.ok(spawnTool?.parameters?.properties?.persistent);
+});
+
 test("Pi children cannot invoke any parent orchestration lifecycle tool", () => {
   const excluded = new Set<string>(CHILD_EXCLUDED_TOOL_NAMES);
   for (const name of [
