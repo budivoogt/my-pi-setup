@@ -56,6 +56,15 @@ export function piProviderRequestOptions(
   return {};
 }
 
+/** Resolve send atomically against the Pi session's native streaming state. */
+export function piSessionSendMode(
+  persistent: boolean,
+  isStreaming: boolean,
+): "steer" | "start" | "released" {
+  if (isStreaming) return "steer";
+  return persistent ? "start" : "released";
+}
+
 /** Tools that headless children must not receive. Everything else stays enabled. */
 export const CHILD_EXCLUDED_TOOL_NAMES = [
   "subagent_spawn",
@@ -645,7 +654,11 @@ const makePiSession = (
               message: "Subagent session is closed.",
             });
           }
-          if (session.isStreaming) {
+          const mode = piSessionSendMode(
+            task.persistent === true,
+            session.isStreaming,
+          );
+          if (mode === "steer") {
             // Steer the active run via the SDK's queue; queue_update events
             // render it, message_end(user) lands it in the transcript. A
             // rejected steer is a real send failure, not a diagnostic.
@@ -653,6 +666,12 @@ const makePiSession = (
               try: () => session.steer(text),
               catch: (error) => new SendError({ message: boundedError(error) }),
             }).pipe(Effect.as("steered" as const));
+          }
+          if (mode === "released") {
+            return new SendError({
+              message:
+                "Disposable Pi session has settled. Spawn with persistent=true to keep it available for later turns.",
+            });
           }
           return Effect.sync(() => {
             startRun(text);
