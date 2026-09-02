@@ -45,9 +45,16 @@ export const MAX_RUNNING = 8;
 export const MAX_TRACKED = 64;
 const STOP_TIMEOUT_MS = 5_000;
 const ERROR_TEXT_MAX_LENGTH = 4_096;
+const COMPLETED_RESULT_MAX_LENGTH = 16 * 1_024;
 
 function bounded(text: string) {
   return text.slice(0, ERROR_TEXT_MAX_LENGTH);
+}
+
+function boundedCompletedResult(text: string) {
+  if (text.length <= COMPLETED_RESULT_MAX_LENGTH) return text;
+  const marker = "\n\n[completed result truncated after session disposal]";
+  return text.slice(0, COMPLETED_RESULT_MAX_LENGTH - marker.length) + marker;
 }
 
 // --- Internal state -----------------------------------------------------------
@@ -60,6 +67,8 @@ interface MutableSnapshot {
   prompt: string;
   cwd: string;
   role?: string;
+  persistent: boolean;
+  sessionAvailable: boolean;
   status: SubagentStatus;
   createdAt: number;
   settledAt?: number;
@@ -77,9 +86,11 @@ interface MutableSnapshot {
 
 interface Entry {
   snapshot: MutableSnapshot;
-  session: SubagentSession;
-  scope: Scope.Closeable;
+  session?: SubagentSession;
+  scope?: Scope.Closeable;
   pump?: Fiber.Fiber<void>;
+  /** Scope finalization started after a disposable Pi child settled. */
+  releasing?: Fiber.Fiber<void>;
   liveToolMap: Map<string, LiveToolState>;
   /** Idle restart dispatched but RunStarted not folded yet; counts as running
    * so concurrent restarts cannot race past the cap. */
@@ -257,7 +268,10 @@ const makeManager = Effect.gen(function* () {
     for (const capture of collectors) capture(snapshot);
   };
 
-  const runningCount = () => [...entries.values()].filter(isEntryActive).length;
+  const runningCount = () =>
+    [...entries.values()].filter(
+      (entry) => isEntryActive(entry) || entry.releasing !== undefined,
+    ).length;
 
   const addInterest = (ids: ReadonlyArray<string>) => {
     for (const id of ids) waitInterest.set(id, (waitInterest.get(id) ?? 0) + 1);
@@ -273,15 +287,61 @@ const makeManager = Effect.gen(function* () {
     if (changed) notify();
   };
 
-  const closeEntryScope = (entry: Entry) =>
-    Scope.close(entry.scope, Exit.void).pipe(Effect.ignore);
+  const compactDisposableSnapshot = (snapshot: MutableSnapshot) => {
+    if (snapshot.persistent) return;
+    snapshot.prompt = "";
+    snapshot.transcript = [];
+    snapshot.finalText = boundedCompletedResult(snapshot.finalText);
+    snapshot.meta = {
+      backend: snapshot.meta.backend,
+      modelLabel: snapshot.meta.modelLabel,
+      contextWindow: snapshot.meta.contextWindow,
+    };
+  };
 
-  const pruneSettled = () => {
-    if (entries.size <= MAX_TRACKED) return;
+  const releaseEntrySession = (entry: Entry) =>
+    Effect.gen(function* () {
+      const scope = entry.scope;
+      entry.scope = undefined;
+      compactDisposableSnapshot(entry.snapshot);
+      entry.snapshot.sessionAvailable = false;
+      if (scope) {
+        yield* Scope.close(scope, Exit.void).pipe(
+          Effect.timeout(STOP_TIMEOUT_MS),
+          Effect.ignore,
+        );
+      }
+      entry.session = undefined;
+      entry.pump = undefined;
+      notify(entry.snapshot.id);
+    });
+
+  const trackCleanup = (fiber: Fiber.Fiber<void>) => {
+    cleanups.add(fiber);
+    fiber.addObserver(() => cleanups.delete(fiber));
+  };
+
+  const releaseDisposableSession = (entry: Entry) => {
+    if (entry.snapshot.persistent || entry.releasing || !entry.scope) return;
+    entry.snapshot.sessionAvailable = false;
+    const fiber = runDetached(releaseEntrySession(entry));
+    entry.releasing = fiber;
+    trackCleanup(fiber);
+    fiber.addObserver(() => {
+      entry.releasing = undefined;
+      notify(entry.snapshot.id);
+    });
+  };
+
+  const pruneSettled = (limit = MAX_TRACKED) => {
+    if (entries.size <= limit) return;
     const candidates = [...entries.values()]
       .filter(
-        (e) =>
-          !isEntryActive(e) && !e.closing && !waitInterest.has(e.snapshot.id),
+        (entry) =>
+          !isEntryActive(entry) &&
+          !entry.closing &&
+          !entry.releasing &&
+          !waitInterest.has(entry.snapshot.id),
       )
       .sort(
         (a, b) =>
@@ -289,11 +349,10 @@ const makeManager = Effect.gen(function* () {
           (b.snapshot.settledAt ?? b.snapshot.createdAt),
       );
     for (const entry of candidates) {
-      if (entries.size <= MAX_TRACKED) break;
+      if (entries.size <= limit) break;
       entries.delete(entry.snapshot.id);
-      const fiber = runDetached(closeEntryScope(entry));
-      cleanups.add(fiber);
-      fiber.addObserver(() => cleanups.delete(fiber));
+      const fiber = runDetached(releaseEntrySession(entry));
+      trackCleanup(fiber);
     }
   };
 
@@ -324,6 +383,10 @@ const makeManager = Effect.gen(function* () {
     s.liveTools = [];
     s.queued = [];
     s.runSequence++;
+    if (!s.persistent) {
+      compactDisposableSnapshot(s);
+      releaseDisposableSession(entry);
+    }
     const consumed = (waitInterest.get(s.id) ?? 0) > 0;
     captureForWaiters(entry);
     notify(s.id);
@@ -437,6 +500,12 @@ const makeManager = Effect.gen(function* () {
               message: "Subagent manager is shutting down.",
             });
           }
+          pruneSettled(MAX_TRACKED - reserved - 1);
+          if (entries.size + reserved >= MAX_TRACKED) {
+            return new SpawnError({
+              message: `Max ${MAX_TRACKED} subagents can be tracked. Close retained children before spawning another.`,
+            });
+          }
           if (runningCount() + reserved >= MAX_RUNNING) {
             return new ConcurrencyLimitError({
               message: `Max ${MAX_RUNNING} subagents can run concurrently. Wait for one to finish (subagent_wait) before spawning another.`,
@@ -482,6 +551,8 @@ const makeManager = Effect.gen(function* () {
             prompt: task.prompt,
             cwd: task.cwd,
             role: task.role?.name,
+            persistent: backendName !== "pi" || task.persistent === true,
+            sessionAvailable: true,
             status: "running",
             createdAt: Date.now(),
             meta,
@@ -520,6 +591,7 @@ const makeManager = Effect.gen(function* () {
         entry.pump = yield* Scope.provide(Effect.forkScoped(pump), scope);
 
         notify(id);
+        pruneSettled();
         return entry.snapshot as SubagentSnapshot;
       });
 
@@ -589,7 +661,9 @@ const makeManager = Effect.gen(function* () {
   const abortEntry = (entry: Entry) =>
     Effect.gen(function* () {
       if (!isEntryActive(entry)) return;
-      const graceful = yield* entry.session.interrupt.pipe(
+      const session = entry.session;
+      if (!session) return;
+      const graceful = yield* session.interrupt.pipe(
         Effect.timeout(STOP_TIMEOUT_MS),
         Effect.result,
       );
@@ -603,17 +677,21 @@ const makeManager = Effect.gen(function* () {
             "Abort deadline exceeded; session was force-disposed";
           notify(entry.snapshot.id);
         });
-        // Bound the close like disposeAll does: a stuck backend finalizer
+        // Bound the release like disposeAll does: a stuck backend finalizer
         // must not hang cancel after the run is already settled.
-        yield* closeEntryScope(entry).pipe(
-          Effect.timeout(STOP_TIMEOUT_MS),
-          Effect.ignore,
-        );
+        if (entry.releasing) {
+          yield* Fiber.await(entry.releasing).pipe(
+            Effect.timeout(STOP_TIMEOUT_MS),
+            Effect.ignore,
+          );
+        } else {
+          yield* releaseEntrySession(entry);
+        }
       } else {
         // interrupt() guarantees the terminal event was emitted; the FIFO
         // barrier guarantees the manager pump folded it before callers inspect
         // or remove this entry. A closed stream is already drained by its pump.
-        const synchronized = yield* entry.session.synchronize.pipe(
+        const synchronized = yield* session.synchronize.pipe(
           Effect.timeout(STOP_TIMEOUT_MS),
           Effect.orElseSucceed(() => false),
         );
@@ -702,6 +780,12 @@ const makeManager = Effect.gen(function* () {
           message: `Subagent "${id}" is starting another turn.`,
         });
       }
+      const session = entry.session;
+      if (!session || !entry.snapshot.sessionAvailable) {
+        return new SendError({
+          message: `Subagent "${id}" was disposable and its session has been released. Spawn with persistent=true to keep a Pi child available for later turns.`,
+        });
+      }
       // Restarting a settled subagent occupies a running slot again, so it
       // must respect the same cap as spawn. The backend disposition remains
       // authoritative because its native state can be ahead of this pump.
@@ -718,7 +802,7 @@ const makeManager = Effect.gen(function* () {
         // when the backend rejects the send.
         entry.restarting = true;
       }
-      return entry.session.send(text).pipe(
+      return session.send(text).pipe(
         Effect.tap((disposition) =>
           Effect.sync(() => {
             if (disposition === "queued") {
@@ -766,10 +850,14 @@ const makeManager = Effect.gen(function* () {
           captureForWaiters(entry);
         }
         entries.delete(id);
-        yield* closeEntryScope(entry).pipe(
-          Effect.timeout(STOP_TIMEOUT_MS),
-          Effect.ignore,
-        );
+        if (entry.releasing) {
+          yield* Fiber.await(entry.releasing).pipe(
+            Effect.timeout(STOP_TIMEOUT_MS),
+            Effect.ignore,
+          );
+        } else {
+          yield* releaseEntrySession(entry);
+        }
         notify(id);
         return {
           id,
@@ -797,10 +885,12 @@ const makeManager = Effect.gen(function* () {
     yield* Effect.forEach(
       all,
       (entry) =>
-        closeEntryScope(entry).pipe(
-          Effect.timeout(STOP_TIMEOUT_MS),
-          Effect.ignore,
-        ),
+        entry.releasing
+          ? Fiber.await(entry.releasing).pipe(
+              Effect.timeout(STOP_TIMEOUT_MS),
+              Effect.ignore,
+            )
+          : releaseEntrySession(entry),
       { concurrency: "unbounded" },
     );
     // Pruning cleanups are detached; bound them like everything else so a

@@ -8,11 +8,12 @@ owner: "@budivoogt"
 
 ## User-visible behavior
 
-The extension registers a persistent child-agent lifecycle: spawn, send, wait,
-interrupt, close, check, and list. Spawn is asynchronous. The manager folds each
-backend's event stream into a stable snapshot used by model-facing tools and the
-`/subagents` dashboard. A child can receive multiple turns without losing its
-context.
+The extension registers spawn, send, wait, interrupt, close, check, and list.
+Spawn is asynchronous. Pi children are disposable by default. Settlement closes
+the in-process session and reduces its snapshot to a bounded result that remains
+available to automatic delivery and waiters. `persistent: true` keeps a Pi
+session available for later turns or takeover. Claude and Codex retain their
+existing persistent lifecycle.
 
 Results that finish while the parent is busy are queued and delivered when the
 parent becomes idle. An explicit wait marks its selected results as consumed,
@@ -24,16 +25,20 @@ changing the child's configured effort or model.
 
 ## Architecture
 
-`extensions/subagents/src/backend.ts` defines the common persistent-session
-contract. Pi runs an in-process `AgentSession`; Claude uses its Agent SDK; Codex
-uses `codex app-server`. `extensions/subagents/src/manager.ts` owns the registry,
-race-safe eight-agent reservation, event folding, wait interest, pruning, bounded
-interrupt, and scope cleanup. `extensions/subagents/index.ts` is the Pi extension
-boundary and tool/UI layer.
+`extensions/subagents/src/backend.ts` defines the common session contract. Pi
+runs an in-process `AgentSession`; Claude uses its Agent SDK; Codex uses
+`codex app-server`. `extensions/subagents/src/manager.ts` owns the registry,
+race-safe running and tracked reservations, event folding, wait capture,
+settlement disposal, pruning, bounded interrupt, and scope cleanup.
+`extensions/subagents/index.ts` is the Pi extension boundary and tool/UI layer.
+Disposable Pi sessions use an in-memory `SessionManager`, so high-churn workers
+do not create resumable child session files.
 
-Interrupt stops only the active turn. Close interrupts if necessary, waits for
-the manager to fold a terminal event, closes the backend scope, and removes the
-id. This ordering avoids reporting a closed child as still running.
+Interrupt stops only the active turn. A disposable Pi child's id remains
+inspectable after settlement, but `send` rejects a restart because its scope is
+closed. Close interrupts if necessary, waits for the manager to fold a terminal
+event, closes any remaining backend scope, and removes the id. This ordering
+avoids reporting a closed child as still running.
 
 ## Roles
 
@@ -100,6 +105,8 @@ Run from the repository root:
     npm --workspace extensions/subagents test
 
 The subagents suite covers registration and child denylisting, role parsing and
-cwd policy, simultaneous concurrency reservation, send/restart, interrupt,
-close, deferred delivery, context accounting, and dashboard selection. Live
-Claude/Codex tests remain opt-in because they require authenticated CLIs.
+cwd policy, simultaneous concurrency reservation, repeated eight-worker Pi
+waves, bounded retained results, scope finalization, persistent restart,
+interrupt, close, deferred delivery, context accounting, and dashboard
+selection. Live Claude/Codex tests remain opt-in because they require
+authenticated CLIs.

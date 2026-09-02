@@ -12,9 +12,15 @@ import { Effect, Layer, ManagedRuntime } from "effect";
 import { BackendRegistry, type SubagentBackend } from "./src/backend.ts";
 import { piBackend } from "./src/backends/pi.ts";
 import { makeStubBackend } from "./src/backends/stub.ts";
-import type { BackendName, ParentContext, SpawnTask } from "./src/domain.ts";
+import type {
+  BackendName,
+  ParentContext,
+  SpawnTask,
+  SubagentSnapshot,
+} from "./src/domain.ts";
 import {
   MAX_RUNNING,
+  MAX_TRACKED,
   SubagentManager,
   SubagentManagerLive,
   type SubagentManagerShape,
@@ -49,13 +55,40 @@ const createTestRuntime = () =>
     SubagentManagerLive.pipe(Layer.provide(TestRegistryLive)),
   );
 
+const createPiLifecycleRuntime = (onSessionClosed: () => void) => {
+  const backend = makeStubBackend({
+    backend: "pi",
+    defaultModelLabel: "pi/test",
+    contextWindow: 128_000,
+    toolName: "read",
+    cadenceMs: 1,
+    onSessionClosed,
+  });
+  const registry = Layer.succeed(
+    BackendRegistry,
+    new Map<BackendName, SubagentBackend>([["pi", backend]]),
+  );
+  return ManagedRuntime.make(SubagentManagerLive.pipe(Layer.provide(registry)));
+};
+
 const parent: ParentContext = {
   parentCwd: process.cwd(),
   projectTrusted: false,
 };
 
-function task(prompt: string): SpawnTask {
-  return { prompt, title: "test", cwd: process.cwd(), parent };
+function task(
+  prompt: string,
+  options: Pick<SpawnTask, "persistent"> = {},
+): SpawnTask {
+  return { prompt, title: "test", cwd: process.cwd(), parent, ...options };
+}
+
+async function waitUntil(predicate: () => boolean, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error("Timed out waiting for state");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
 }
 
 async function withManager(
@@ -191,6 +224,111 @@ test("pi spawn fails fast without the parent model registry", async () => {
   });
 });
 
+test("repeated eight-worker Pi waves release sessions and keep bounded results", async () => {
+  let closedSessions = 0;
+  const runtime = createPiLifecycleRuntime(() => closedSessions++);
+  try {
+    const manager = await runtime.runPromise(SubagentManager);
+    const delivered: SubagentSnapshot[] = [];
+    manager.view.setOnSettled((snapshot) => delivered.push(snapshot));
+
+    const waveCount = Math.ceil(MAX_TRACKED / MAX_RUNNING) + 2;
+    for (let wave = 0; wave < waveCount; wave++) {
+      const workers = await runTool(
+        runtime,
+        Effect.forEach(
+          Array.from({ length: MAX_RUNNING }, (_, index) => index),
+          (index) =>
+            manager.spawn(
+              "pi",
+              task(
+                `wave ${wave}, worker ${index}: ${"context ".repeat(4_000)}`,
+              ),
+            ),
+          { concurrency: "unbounded" },
+        ),
+      );
+      const settled = await runTool(
+        runtime,
+        manager.waitFor(workers.map(({ id }) => id)),
+      );
+      await waitUntil(() => closedSessions === (wave + 1) * MAX_RUNNING, 5_000);
+
+      assert.equal(settled.length, MAX_RUNNING);
+      assert.ok(manager.view.size() <= MAX_TRACKED);
+      for (const snapshot of settled) {
+        assert.equal(snapshot.status, "done");
+        assert.equal(snapshot.persistent, false);
+        assert.equal(snapshot.sessionAvailable, false);
+        assert.equal(snapshot.prompt, "");
+        assert.deepEqual(snapshot.transcript, []);
+        assert.equal(snapshot.meta.sessionFilePath, undefined);
+        assert.equal(snapshot.meta.nativeSessionId, undefined);
+        assert.ok(snapshot.finalText.length <= 24 * 1_024);
+      }
+    }
+
+    assert.equal(delivered.length, waveCount * MAX_RUNNING);
+  } finally {
+    await runtime.dispose();
+  }
+});
+
+test("persistent Pi children keep their session until explicit close", async () => {
+  let closedSessions = 0;
+  const runtime = createPiLifecycleRuntime(() => closedSessions++);
+  try {
+    const manager = await runtime.runPromise(SubagentManager);
+    const child = await runTool(
+      runtime,
+      manager.spawn("pi", task("first turn", { persistent: true })),
+    );
+    await runTool(runtime, manager.waitFor([child.id]));
+
+    const idle = manager.view.get(child.id);
+    assert.equal(idle?.persistent, true);
+    assert.equal(idle?.sessionAvailable, true);
+    assert.equal(closedSessions, 0);
+
+    await runTool(runtime, manager.send(child.id, "second turn"));
+    const [restarted] = await runTool(runtime, manager.waitFor([child.id]));
+    assert.match(restarted?.finalText ?? "", /second turn/);
+
+    const closed = await runTool(runtime, manager.close(child.id));
+    assert.equal(closed?.interrupted, false);
+    assert.equal(closedSessions, 1);
+    assert.equal(manager.view.get(child.id), undefined);
+  } finally {
+    await runtime.dispose();
+  }
+});
+
+test("a settled disposable Pi child rejects restart and closes only once", async () => {
+  let closedSessions = 0;
+  const runtime = createPiLifecycleRuntime(() => closedSessions++);
+  try {
+    const manager = await runtime.runPromise(SubagentManager);
+    const child = await runTool(
+      runtime,
+      manager.spawn("pi", task("one-shot retrieval")),
+    );
+    const [waited] = await runTool(runtime, manager.waitFor([child.id]));
+    await waitUntil(() => closedSessions === 1);
+
+    assert.match(waited?.finalText ?? "", /one-shot retrieval/);
+    await assert.rejects(
+      runTool(runtime, manager.send(child.id, "restart")),
+      /disposable.*released/,
+    );
+    const closed = await runTool(runtime, manager.close(child.id));
+    assert.equal(closed?.interrupted, false);
+    assert.equal(closedSessions, 1);
+    assert.equal(manager.view.get(child.id), undefined);
+  } finally {
+    await runtime.dispose();
+  }
+});
+
 test("idle restarts respect the concurrency cap", async () => {
   await withManager(async (manager, runtime) => {
     // Settle one subagent, then fill every slot with running ones.
@@ -225,6 +363,8 @@ test("send steers an idle subagent into another turn", async () => {
     await runTool(runtime, manager.waitFor([snap.id]));
     const afterFirst = manager.view.get(snap.id);
     assert.equal(afterFirst?.status, "done");
+    assert.equal(afterFirst?.persistent, true);
+    assert.equal(afterFirst?.sessionAvailable, true);
 
     await runTool(runtime, manager.send(snap.id, "Second turn"));
     // Waiting immediately must observe the reserved restart before the

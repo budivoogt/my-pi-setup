@@ -61,6 +61,8 @@ export interface SpawnTask {
   readonly reasoningEffort?: ReasoningEffort;
   /** Role-level service class, supported only by the Pi backend. */
   readonly serviceTier?: ServiceTier;
+  /** Keep a completed Pi session available for later turns. Pi defaults false. */
+  readonly persistent?: boolean;
   /** Durable child role resolved by the parent tool layer. */
   readonly role?: {
     readonly name: string;
@@ -205,6 +207,10 @@ export interface SubagentSnapshot {
   readonly prompt: string;
   readonly cwd: string;
   readonly role?: string;
+  /** Pi defaults to disposable; out-of-process backends remain persistent. */
+  readonly persistent: boolean;
+  /** Whether the live backend session can still accept commands. */
+  readonly sessionAvailable: boolean;
   readonly status: SubagentStatus;
   readonly createdAt: number;
   readonly settledAt?: number;

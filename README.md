@@ -17,10 +17,12 @@ This setup is fairly opinionated, it:
 
 ## Subagents
 
-Each child has a fresh context window and a persistent session. The parent can
-spawn work without blocking, steer a running child, continue it after
-completion, wait for results, interrupt the active turn, or close the session.
-Unawaited results are delivered automatically when the parent becomes idle.
+Each child has a fresh context window. Pi children are disposable by default:
+they release their in-process session when the run settles and retain a bounded
+result for delivery and waiting. Set `persistent: true` at spawn only when a Pi
+child needs another turn or takeover after settlement. Claude and Codex keep
+their existing persistent sessions. Unawaited results are delivered
+automatically when the parent becomes idle.
 
 | Tool                               | Purpose                                                 |
 | ---------------------------------- | ------------------------------------------------------- |

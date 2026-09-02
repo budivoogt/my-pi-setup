@@ -35,6 +35,8 @@ export interface StubProfile {
   readonly toolName: string;
   /** Delay between scripted events; varies per backend so streams differ. */
   readonly cadenceMs: number;
+  /** Test observer for proving that the manager released the session scope. */
+  readonly onSessionClosed?: () => void;
 }
 
 const STUB_DIR = path.join(os.tmpdir(), "subagents-stub");
@@ -244,6 +246,7 @@ const makeStubSession = (
         state.closed = true;
         yield* Queue.end(inbox).pipe(Effect.ignore);
         yield* Queue.end(events).pipe(Effect.ignore);
+        yield* Effect.sync(() => profile.onSessionClosed?.());
       }),
     );
 

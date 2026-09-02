@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Make completed Pi children disposable by default, retain bounded results for
+  delivery and waits, and add an explicit persistent lifecycle for restart or
+  takeover use cases.
+- Bound tracked subagent state across repeated eight-worker waves and use
+  in-memory Pi sessions for disposable workers.
 - Route Pi explorer, luna-explorer, and monitor through Luna with the Fast
   service tier; update Pi editor and worker defaults to Grok 4.6 at low and
   medium effort respectively.
