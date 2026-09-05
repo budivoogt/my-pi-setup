@@ -362,8 +362,10 @@ const makeManager = Effect.gen(function* () {
     s.settledAt = Date.now();
     switch (outcome._tag) {
       case "Completed":
-        s.status = "done";
-        s.errorText = undefined;
+        s.status = outcome.finalText.trim() ? "done" : "error";
+        s.errorText = outcome.finalText.trim()
+          ? undefined
+          : "Subagent returned an empty result; no completed review or task output is available.";
         s.finalText = outcome.finalText;
         break;
       case "Failed":

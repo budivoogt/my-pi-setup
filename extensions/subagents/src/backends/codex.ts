@@ -2,8 +2,9 @@
  * Codex backend — real implementation over `codex app-server`.
  *
  * One scoped app-server process owns one persistent Codex thread. The server
- * speaks LF-delimited JSON-RPC over stdio: initialize, thread/start, and
- * turn/start drive runs; v2 item notifications are translated into normalized
+ * speaks LF-delimited JSON-RPC over stdio: initialize, account/read, paginated
+ * model/list, thread/start, and turn/start drive runs; v2 item notifications
+ * are translated into normalized
  * SubagentEvents. send() queues a follow-up turn while busy, and interrupt uses
  * turn/interrupt with a local deadline so a missing server acknowledgement can
  * never leave the manager stuck in "running".
@@ -27,6 +28,9 @@ import { SendError, SpawnError } from "../domain.ts";
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const MODEL_LIST_TIMEOUT_MS = 5_000;
+const MODEL_LIST_DEADLINE_MS = 8_000;
+const MAX_MODEL_LIST_PAGES = 32;
+const JSON_RPC_METHOD_NOT_FOUND = -32601;
 const INTERRUPT_FALLBACK_MS = 1_500;
 const FORCE_KILL_AFTER_MS = 2_000;
 const PREVIEW_MAX_LENGTH = 1_024;
@@ -156,6 +160,145 @@ function preferredCodexEffort(effort: ReasoningEffort | undefined) {
     case undefined:
       return undefined;
   }
+}
+
+function catalogEntry(models: ReadonlyArray<JsonRecord>, label: string) {
+  return models.find(
+    (candidate) =>
+      stringValue(candidate.id) === label ||
+      stringValue(candidate.model) === label,
+  );
+}
+
+function catalogKey(entry: JsonRecord) {
+  return stringValue(entry.id) ?? stringValue(entry.model);
+}
+
+function catalogModelIds(models: ReadonlyArray<JsonRecord>) {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const model of models) {
+    const id = stringValue(model.model) ?? stringValue(model.id);
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
+function sameCatalogSelection(
+  left: string,
+  right: string,
+  models: ReadonlyArray<JsonRecord>,
+) {
+  const requested = catalogEntry(models, left);
+  const returned = catalogEntry(models, right);
+  if (!requested || !returned) return false;
+  return catalogKey(requested) === catalogKey(returned);
+}
+
+function rpcCode(error: unknown) {
+  return error instanceof Error
+    ? numberValue((error as { jsonRpcCode?: unknown }).jsonRpcCode)
+    : undefined;
+}
+
+function classifiedDiscoveryFailure(
+  kind: "account" | "catalog",
+  error: unknown,
+) {
+  const prefix =
+    kind === "account"
+      ? "Codex account discovery failed"
+      : "Codex model catalog discovery failed";
+  const action =
+    "Check the selected Codex configuration home and CLI version, then refresh discovery before launching.";
+  const text = error instanceof Error ? error.message : "";
+  if (text.includes(" timed out."))
+    return new Error(`${prefix}: timed out. ${action}`);
+  if (rpcCode(error) === JSON_RPC_METHOD_NOT_FOUND) {
+    return new Error(`${prefix}: method unavailable. ${action}`);
+  }
+  return new Error(`${prefix}: unavailable. ${action}`);
+}
+
+/**
+ * `account/read` may return null when OpenAI auth is not required (external
+ * API-key / custom-provider config). Do not treat that as missing auth, and
+ * never include account fields in errors.
+ */
+function accountIsUsable(result: JsonRecord) {
+  const account = record(result.account);
+  if (account) {
+    const type = stringValue(account.type);
+    return type === "apiKey" || type === "chatgpt" || type === "amazonBedrock";
+  }
+  return booleanValue(result.requiresOpenaiAuth) === false;
+}
+
+async function listCodexCatalog(
+  request: (
+    method: string,
+    params: JsonRecord,
+    timeoutMs?: number,
+  ) => Promise<JsonRecord>,
+) {
+  const models: JsonRecord[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | undefined;
+  const deadline = Date.now() + MODEL_LIST_DEADLINE_MS;
+  for (let page = 0; page < MAX_MODEL_LIST_PAGES; page++) {
+    if (Date.now() >= deadline) {
+      throw new Error("Codex model catalog discovery failed: timed out.");
+    }
+    if (cursor) {
+      if (seenCursors.has(cursor)) {
+        throw new Error("Codex model catalog discovery failed: malformed.");
+      }
+      seenCursors.add(cursor);
+    }
+    const params: JsonRecord = { includeHidden: true };
+    if (cursor) params.cursor = cursor;
+    let result: JsonRecord;
+    try {
+      result = await request(
+        "model/list",
+        params,
+        Math.max(1, Math.min(MODEL_LIST_TIMEOUT_MS, deadline - Date.now())),
+      );
+      if (Date.now() >= deadline) {
+        throw new Error("Codex model/list timed out.");
+      }
+    } catch (error) {
+      throw classifiedDiscoveryFailure("catalog", error);
+    }
+    if (!Array.isArray(result.data)) {
+      throw new Error("Codex model catalog discovery failed: malformed.");
+    }
+    models.push(
+      ...records(result.data).filter(
+        (entry) =>
+          stringValue(entry.id) !== undefined ||
+          stringValue(entry.model) !== undefined,
+      ),
+    );
+    const nextRaw = result.nextCursor;
+    if (nextRaw === undefined || nextRaw === null || nextRaw === "") {
+      if (models.length === 0) {
+        throw new Error("Codex model catalog discovery failed: malformed.");
+      }
+      return models;
+    }
+    if (typeof nextRaw !== "string") {
+      throw new Error("Codex model catalog discovery failed: malformed.");
+    }
+    if (seenCursors.has(nextRaw) || nextRaw === cursor) {
+      throw new Error("Codex model catalog discovery failed: malformed.");
+    }
+    cursor = nextRaw;
+  }
+  throw new Error("Codex model catalog discovery failed: malformed.");
 }
 
 /** Clamp against model/list because, for example, some models use none instead of minimal. */
@@ -630,9 +773,16 @@ const makeCodexSession = (
         }
         case "model/rerouted": {
           const modelLabel = stringValue(params.toModel);
+          const fromModel = stringValue(params.fromModel);
           if (modelLabel) {
             state.meta = { ...state.meta, modelLabel };
             emit({ _tag: "MetaChanged", meta: { modelLabel } });
+          }
+          if (fromModel && modelLabel && fromModel !== modelLabel) {
+            state.runError = boundedError(
+              `Codex substituted model "${modelLabel}" for "${fromModel}". Silent substitution is not allowed.`,
+            );
+            emit({ _tag: "BackendError", message: state.runError });
           }
           break;
         }
@@ -741,7 +891,8 @@ const makeCodexSession = (
           const status = stringValue(turn?.status);
           const error = record(turn?.error);
           const partialText =
-            state.finalText || state.lastAssistantText || undefined;
+            (state.finalText || state.lastAssistantText || "").trim() ||
+            undefined;
           if (state.interruptRequested || status === "interrupted") {
             settleRun({ _tag: "Interrupted", partialText });
           } else if (status === "failed") {
@@ -754,10 +905,28 @@ const makeCodexSession = (
               ),
               partialText,
             });
+          } else if (
+            status !== "completed" ||
+            state.runError ||
+            error ||
+            !partialText
+          ) {
+            const reason =
+              state.runError ??
+              (error
+                ? "Codex turn completed with an error payload"
+                : status === "completed"
+                  ? "Codex run completed without a final assistant message"
+                  : `Codex turn ended with status ${status ?? "missing"}`);
+            settleRun({
+              _tag: "Failed",
+              errorText: boundedError(reason),
+              partialText,
+            });
           } else {
             settleRun({
               _tag: "Completed",
-              finalText: state.finalText || state.lastAssistantText,
+              finalText: partialText,
             });
           }
           break;
@@ -805,9 +974,14 @@ const makeCodexSession = (
         if (!pending) return;
         pendingRequests.delete(id);
         clearTimeout(pending.timer);
-        if (message.error !== undefined)
-          pending.reject(new Error(protocolError(message.error)));
-        else pending.resolve(record(message.result) ?? {});
+        if (message.error !== undefined) {
+          const rpcError = new Error(protocolError(message.error));
+          const code = numberValue(record(message.error)?.code);
+          if (code !== undefined) {
+            (rpcError as { jsonRpcCode?: number }).jsonRpcCode = code;
+          }
+          pending.reject(rpcError);
+        } else pending.resolve(record(message.result) ?? {});
         return;
       }
       if (message.id !== undefined && message.method !== undefined)
@@ -898,16 +1072,70 @@ const makeCodexSession = (
           capabilities: { experimentalApi: true },
         });
         writeMessage({ method: "initialized" });
+
+        let accountResult: JsonRecord;
+        try {
+          accountResult = await request(
+            "account/read",
+            {},
+            MODEL_LIST_TIMEOUT_MS,
+          );
+        } catch (error) {
+          throw classifiedDiscoveryFailure("account", error);
+        }
+        if (!accountIsUsable(accountResult)) {
+          throw new Error(
+            "Codex app-server has no usable Codex account. ChatGPT OAuth or an OpenAI API key is required for OpenAI-hosted models. Run codex login for this configuration home or configure the intended provider; Pi OAuth credentials do not authenticate Codex CLI.",
+          );
+        }
+
+        const catalog = await listCodexCatalog(request);
+        if (task.model && !catalogEntry(catalog, task.model)) {
+          const alternatives = catalogModelIds(catalog)
+            .filter((id) => id !== task.model)
+            .slice(0, 8);
+          throw new Error(
+            `Unsupported Codex model "${task.model}". Verified catalog alternatives: ${alternatives.join(", ")}. Catalog membership does not guarantee entitlement.`,
+          );
+        }
+
         // Headless children cannot answer approval prompts. The caller
         // already chose to launch an autonomous subagent, so give the thread
         // full workspace access without interactive approval requests.
-        return request("thread/start", {
+        const started = await request("thread/start", {
           cwd: task.cwd,
           approvalPolicy: "never",
           sandbox: "danger-full-access",
           ephemeral: false,
-          ...(task.model ? { model: task.model } : {}),
+          ...(task.model
+            ? { model: task.model, allowProviderModelFallback: false }
+            : {}),
         });
+        const returnedModel = stringValue(started.model)?.trim();
+        if (!returnedModel) {
+          throw new Error(
+            "Codex thread/start returned no model. The selected model cannot be verified.",
+          );
+        }
+        if (task.model) {
+          if (!sameCatalogSelection(task.model, returnedModel, catalog)) {
+            throw new Error(
+              `Codex substituted model "${returnedModel}" for requested "${task.model}". Silent substitution is not allowed.`,
+            );
+          }
+        } else if (!catalogEntry(catalog, returnedModel)) {
+          throw new Error(
+            `Codex started model "${returnedModel}" is not in the verified catalog. Silent substitution is not allowed.`,
+          );
+        }
+        if (task.reasoningEffort) {
+          state.effort = supportedCodexEffort(
+            task.reasoningEffort,
+            returnedModel,
+            { data: catalog },
+          );
+        }
+        return started;
       },
       catch: (error) => new SpawnError({ message: boundedError(error) }),
     });
@@ -925,19 +1153,6 @@ const makeCodexSession = (
       sessionFilePath: stringValue(thread?.path),
       nativeSessionId,
     };
-    if (task.reasoningEffort) {
-      // Optional capability probe: never let a slow/unsupported model/list
-      // hold up the spawn (and its concurrency reservation) for the full
-      // request timeout; the unclamped preferred effort is a fine fallback.
-      const modelList = yield* Effect.tryPromise(() =>
-        request("model/list", { includeHidden: true }, MODEL_LIST_TIMEOUT_MS),
-      ).pipe(Effect.orElseSucceed(() => undefined));
-      state.effort = supportedCodexEffort(
-        task.reasoningEffort,
-        state.meta.modelLabel,
-        modelList,
-      );
-    }
     emit({ _tag: "MetaChanged", meta: state.meta });
     startRun(task.prompt);
 
