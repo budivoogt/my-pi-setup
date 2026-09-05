@@ -273,6 +273,25 @@ test.describe(
       });
     });
 
+    test("commentary-only completed turn cannot settle as review proof", async () => {
+      await withScenario("turn-commentary", async () => {
+        const { events } = await spawnAndCollect(task({ model: "gpt-5.4" }));
+        const outcome = settledOutcome(events);
+        assert.equal(outcome._tag, "Failed");
+        assert.match(outcome.errorText, /final assistant message/i);
+      });
+    });
+
+    test("completed unphased model output remains compatible with nullable protocol phase", async () => {
+      await withScenario("turn-unphased", async () => {
+        const { events } = await spawnAndCollect(task({ model: "gpt-5.4" }));
+        assert.deepEqual(settledOutcome(events), {
+          _tag: "Completed",
+          finalText: "No findings.",
+        });
+      });
+    });
+
     test("empty completed turn cannot settle as review proof", async () => {
       await withScenario("turn-empty", async () => {
         const { events } = await spawnAndCollect(task({ model: "gpt-5.4" }));

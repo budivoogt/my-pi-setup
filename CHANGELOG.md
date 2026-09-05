@@ -4,8 +4,8 @@
 
 - Preflight Pi and Codex subagent model selections and authentication before task
   execution, preserve explicit choices, and report catalog-derived alternatives.
-- Reject invalid or empty Codex completion results and replace stale subagent
-  model recommendations with discovery and review-completion guidance.
+- Reject invalid or commentary-only Codex completions and empty subagent results;
+  replace stale model recommendations with discovery and review-completion guidance.
 
 - Make completed Pi children disposable by default, retain bounded results for
   delivery and waits, and add an explicit persistent lifecycle for restart or

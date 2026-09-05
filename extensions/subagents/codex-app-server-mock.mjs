@@ -135,6 +135,24 @@ function finishTurn(kind) {
     });
     return;
   }
+  if (kind === "commentary" || kind === "unphased") {
+    notify("item/completed", {
+      threadId,
+      turnId,
+      completedAtMs: 2,
+      item: {
+        ...agentMessage(
+          kind === "commentary" ? "I will inspect the diff." : "No findings.",
+        ),
+        phase: kind === "commentary" ? "commentary" : null,
+      },
+    });
+    notify("turn/completed", {
+      threadId,
+      turn: turn("completed", { completedAt: 2, durationMs: 10 }),
+    });
+    return;
+  }
   if (kind === "empty") {
     notify("turn/completed", {
       threadId,
@@ -218,6 +236,8 @@ const turnKind = {
   "turn-in-progress": "inProgress",
   "turn-interrupted": "interrupted",
   "turn-empty": "empty",
+  "turn-commentary": "commentary",
+  "turn-unphased": "unphased",
   "turn-whitespace": "whitespace",
   "turn-completed-with-error": "completed-with-error",
   "error-then-completed": "error-then-completed",

@@ -706,7 +706,8 @@ const makeCodexSession = (
             parts: [{ type: "text", text }],
           });
           state.lastAssistantText = text;
-          if (stringValue(item.phase) === "final_answer")
+          // The protocol permits unphased output from older models.
+          if (item.phase == null || item.phase === "final_answer")
             state.finalText = text;
         }
         return;
@@ -890,9 +891,9 @@ const makeCodexSession = (
           const turn = record(params.turn);
           const status = stringValue(turn?.status);
           const error = record(turn?.error);
+          const finalText = state.finalText.trim();
           const partialText =
-            (state.finalText || state.lastAssistantText || "").trim() ||
-            undefined;
+            (finalText || state.lastAssistantText).trim() || undefined;
           if (state.interruptRequested || status === "interrupted") {
             settleRun({ _tag: "Interrupted", partialText });
           } else if (status === "failed") {
@@ -909,7 +910,7 @@ const makeCodexSession = (
             status !== "completed" ||
             state.runError ||
             error ||
-            !partialText
+            !finalText
           ) {
             const reason =
               state.runError ??
@@ -926,7 +927,7 @@ const makeCodexSession = (
           } else {
             settleRun({
               _tag: "Completed",
-              finalText: partialText,
+              finalText,
             });
           }
           break;
