@@ -13,7 +13,8 @@ export const SUBAGENT_SPAWN_PROMPT_GUIDELINES = [
   "Use subagent_spawn to delegate self-contained tasks that can run in the background; give it a complete, standalone prompt.",
   "For pi and Claude children, select the narrowest role that fits: explorer/reviewer for read-only work, editor for localized edits, worker for implementation, monitor for long commands.",
   "Pick the subagent harness deliberately: pi unless you have a reason to prefer Claude Code or Codex (e.g. the user asked for one, or the task suits that harness).",
-  "After subagent_spawn, keep working; results arrive automatically. Only call subagent_wait when you cannot proceed without the result.",
+  "Discover model/provider choices in the selected harness's registry and check auth availability before launching. Preserve explicit user choices; use reported registry alternatives rather than guessed model retries.",
+  "After subagent_spawn, keep working; results arrive automatically. Only call subagent_wait when you cannot proceed without the result. Spawn acceptance is not review completion: require successful settlement and substantive review output, never a failed, interrupted, or empty result.",
   "Keep high-churn retrieval and research Pi workers disposable. Set persistent=true only for a child that needs a later subagent_send turn or interactive takeover after settlement.",
 ];
 
@@ -28,7 +29,7 @@ export const SUBAGENT_SPAWN_PARAMETER_DESCRIPTIONS = {
   workingDir:
     "Initial working directory (default: current working directory). Pi and Claude role profiles restrict this initial cwd, not absolute paths used by later tools.",
   model:
-    'Model hint, interpreted by the chosen harness (pi: "provider/model-id" or model id; claude: an approved exact model id; codex: model slug). Omit for the role/backend default (pi otherwise inherits the current model).',
+    'Model selection from the selected harness registry (pi: prefer exact "provider/model-id"; claude: an approved exact model id; codex: model slug from its app-server catalog). Explicit choices are preserved, not silently replaced. Omit for the role/backend default (pi otherwise inherits the current model).',
   reasoningEffort:
     "Reasoning effort on a shared scale; the harness maps it to its nearest native equivalent (pi thinking level, codex reasoning effort, claude thinking budget). Omit for the harness default (pi inherits the current level).",
   persistent:
@@ -49,7 +50,7 @@ export function buildSubagentSpawnResult(options: {
   const lifecycle = options.persistent ? "persistent" : "disposable";
   return (
     `Spawned subagent ${options.id} "${options.title}" (${options.harness}: ${options.modelLabel}${role}, ${lifecycle}, ${options.cwd}).\n` +
-    `It runs in the background. Its result will be delivered to you when it finishes, ` +
+    `Launch accepted, not a completed review. It runs in the background. Its result will be delivered to you when it finishes, ` +
     `or use subagent_wait(ids: ["${options.id}"]) to block for it, subagent_send to steer it, subagent_cancel/subagent_interrupt to stop its active turn, subagent_close to release it, and subagent_check/subagent_list to inspect it.`
   );
 }

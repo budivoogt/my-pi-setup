@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Effect, Layer, ManagedRuntime } from "effect";
+import { Effect, Layer, ManagedRuntime, Stream } from "effect";
 import { BackendRegistry, type SubagentBackend } from "./src/backend.ts";
 import { piBackend } from "./src/backends/pi.ts";
 import { makeStubBackend } from "./src/backends/stub.ts";
@@ -16,6 +16,7 @@ import type {
   BackendName,
   ParentContext,
   SpawnTask,
+  SubagentEvent,
   SubagentSnapshot,
 } from "./src/domain.ts";
 import {
@@ -221,6 +222,90 @@ test("pi spawn fails fast without the parent model registry", async () => {
     // The failed spawn must release its concurrency reservation.
     const snap = await runTool(runtime, manager.spawn("codex", task("ok")));
     assert.equal(snap.backend, "codex");
+  });
+});
+
+test("an empty backend result cannot become completed review proof", async () => {
+  const backend: SubagentBackend = {
+    name: "pi",
+    capabilities: {
+      steering: true,
+      modelSelection: true,
+      reasoningEffort: true,
+    },
+    available: Effect.succeed(true),
+    spawn: () =>
+      Effect.succeed({
+        meta: Effect.succeed({ backend: "pi" as const }),
+        events: Stream.fromIterable<SubagentEvent>([
+          { _tag: "RunStarted" },
+          {
+            _tag: "RunSettled",
+            outcome: { _tag: "Completed", finalText: " \n\t" },
+          },
+        ]),
+        send: () => Effect.succeed("started" as const),
+        synchronize: Effect.succeed(true),
+        interrupt: Effect.void,
+      }),
+  };
+  const registry = Layer.succeed(
+    BackendRegistry,
+    new Map<BackendName, SubagentBackend>([["pi", backend]]),
+  );
+  const runtime = ManagedRuntime.make(
+    SubagentManagerLive.pipe(Layer.provide(registry)),
+  );
+  try {
+    const manager = await runtime.runPromise(SubagentManager);
+    const review = await runTool(
+      runtime,
+      manager.spawn("pi", {
+        ...task("review this change"),
+        role: {
+          name: "reviewer",
+          developerInstructions: "Read-only review",
+          tools: ["read"],
+        },
+      }),
+    );
+    await runTool(runtime, manager.waitFor([review.id]));
+    const settled = manager.view.get(review.id);
+    assert.equal(settled?.status, "error");
+    assert.match(settled?.errorText ?? "", /empty result/i);
+  } finally {
+    await runtime.dispose();
+  }
+});
+
+test("Pi model preflight failure never becomes an accepted or completed review", async () => {
+  await withManager(async (manager, runtime) => {
+    const selected = { provider: "openai", id: "review-model" };
+    const modelRegistry = {
+      find: () => selected,
+      getAll: () => [selected],
+      getAvailable: () => [],
+      getProviderAuthStatus: () => ({ configured: false }),
+      getError: () => undefined,
+    } as unknown as NonNullable<ParentContext["modelRegistry"]>;
+    const review: SpawnTask = {
+      ...task("review this change"),
+      model: "openai/review-model",
+      role: {
+        name: "reviewer",
+        developerInstructions: "Read-only review",
+        tools: ["read"],
+      },
+      parent: { ...parent, modelRegistry },
+    };
+    const settled: SubagentSnapshot[] = [];
+    manager.view.setOnSettled((snapshot) => settled.push(snapshot));
+    await assert.rejects(
+      runTool(runtime, manager.spawn("pi", review)),
+      /MODEL_AUTH_UNAVAILABLE/,
+    );
+    assert.deepEqual(manager.view.list(), []);
+    assert.deepEqual(settled, []);
   });
 });
 
