@@ -41,7 +41,11 @@ import {
   findMissingRoleTools,
 } from "../roles.ts";
 
-import { preflightPiModel } from "./pi-model-preflight.ts";
+import { resolveExtensionModelRuntime } from "../../../shared/model-runtime.ts";
+import {
+  catalogFromModelRuntime,
+  preflightPiModel,
+} from "./pi-model-preflight.ts";
 
 const CHILD_SHUTDOWN_TIMEOUT_MS = 5_000;
 const CHILD_TOOL_CALL_TIMEOUT_MS = 3 * 60 * 1_000;
@@ -55,6 +59,20 @@ export function piProviderRequestOptions(
     return { serviceTier: "priority" } as const;
   }
   return {};
+}
+
+/** Inject the Fast->priority request option through the public streamFunction hook. */
+export function applyPiServiceTierToAgent(
+  agent: AgentSession["agent"],
+  serviceTier: ServiceTier | undefined,
+) {
+  if (!serviceTier) return;
+  const stream = agent.streamFunction.bind(agent);
+  agent.streamFunction = (requestModel, context, options) =>
+    stream(requestModel, context, {
+      ...options,
+      ...piProviderRequestOptions(serviceTier, requestModel.provider),
+    });
 }
 
 /** Resolve send atomically against the Pi session's native streaming state. */
@@ -324,12 +342,14 @@ const makePiSession = (
   task: SpawnTask,
 ): Effect.Effect<SubagentSession, SpawnError, Scope.Scope> =>
   Effect.gen(function* () {
-    const registry = task.parent.modelRegistry;
-    if (!registry) {
+    const modelRuntime = resolveExtensionModelRuntime(task.parent);
+    if (!modelRuntime) {
       return yield* new SpawnError({
-        message: "pi backend requires the parent session's model registry.",
+        message: "pi backend requires the parent session's model runtime.",
       });
     }
+    const registry =
+      task.parent.modelRegistry ?? catalogFromModelRuntime(modelRuntime);
 
     const model = yield* Effect.try({
       try: () =>
@@ -354,23 +374,13 @@ const makePiSession = (
             : SessionManager.inMemory(task.cwd),
           settingsManager,
           resourceLoader: loader,
-          modelRegistry: registry,
+          modelRuntime,
           model,
           thinkingLevel,
           tools: task.role ? [...task.role.tools] : undefined,
           excludeTools: [...CHILD_EXCLUDED_TOOL_NAMES],
         });
-        if (task.serviceTier) {
-          const stream = session.agent.streamFn.bind(session.agent);
-          session.agent.streamFn = (requestModel, context, options) =>
-            stream(requestModel, context, {
-              ...options,
-              ...piProviderRequestOptions(
-                task.serviceTier,
-                requestModel.provider,
-              ),
-            });
-        }
+        applyPiServiceTierToAgent(session.agent, task.serviceTier);
         // Start child extension session hooks/resources in headless mode.
         // A rejection here would otherwise leak the freshly created session:
         // the scope finalizer that owns cleanup is only registered later.

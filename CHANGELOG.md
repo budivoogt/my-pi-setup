@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Point Pi subagent and workflow child sessions at the parent ModelRuntime so they
+  reuse credentials and custom providers. Until upstream `earendil-works/pi#8791`
+  ships that public API, this package needs a temporary patched Pi 0.85.1 SDK.
+
+- Refresh compatible transitive npm dependencies for URI parsing, HTTP serving,
+  query-string handling, and related helpers.
+
 - Preflight Pi and Codex subagent model selections and authentication before task
   execution, preserve explicit choices, and report catalog-derived alternatives.
 - Reject invalid or commentary-only Codex completions and empty subagent results;

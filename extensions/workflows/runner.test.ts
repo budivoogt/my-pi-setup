@@ -10,6 +10,7 @@ import {
   createFirstResponseWatchdog,
   guardWorkflowChildTools,
   recordToolExecutionTiming,
+  runAgent,
   transcriptFromMessages,
   type ToolExecutionTiming,
 } from "./runner.ts";
@@ -270,4 +271,18 @@ test("workflow children guard structured, normal, and dynamically registered too
   );
   assert.equal(dynamicSignal?.aborted, true);
   unsubscribe();
+});
+
+test("workflow agents refuse to create an isolated model runtime", async () => {
+  const outcome = await runAgent({
+    prompt: "do not call a provider",
+    cwd: "/tmp",
+    loader: {} as never,
+    settingsManager: {} as never,
+  });
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.aborted, false);
+  assert.match(outcome.error ?? "", /model runtime/);
+  assert.equal(outcome.output, "");
+  assert.deepEqual(outcome.transcript, []);
 });

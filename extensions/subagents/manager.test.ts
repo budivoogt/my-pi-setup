@@ -12,6 +12,7 @@ import { Effect, Layer, ManagedRuntime, Stream } from "effect";
 import { BackendRegistry, type SubagentBackend } from "./src/backend.ts";
 import { piBackend } from "./src/backends/pi.ts";
 import { makeStubBackend } from "./src/backends/stub.ts";
+import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type {
   BackendName,
   ParentContext,
@@ -213,11 +214,11 @@ test("simultaneous spawns reserve exactly the configured slots", async () => {
   });
 });
 
-test("pi spawn fails fast without the parent model registry", async () => {
+test("pi spawn fails fast without the parent model runtime", async () => {
   await withManager(async (manager, runtime) => {
     await assert.rejects(
-      runTool(runtime, manager.spawn("pi", task("needs a registry"))),
-      /model registry/,
+      runTool(runtime, manager.spawn("pi", task("needs a runtime"))),
+      /model runtime/,
     );
     // The failed spawn must release its concurrency reservation.
     const snap = await runTool(runtime, manager.spawn("codex", task("ok")));
@@ -281,6 +282,9 @@ test("an empty backend result cannot become completed review proof", async () =>
 test("Pi model preflight failure never becomes an accepted or completed review", async () => {
   await withManager(async (manager, runtime) => {
     const selected = { provider: "openai", id: "review-model" };
+    const modelRuntime = {
+      tag: "parent-runtime",
+    } as unknown as ModelRuntime;
     const modelRegistry = {
       find: () => selected,
       getAll: () => [selected],
@@ -296,7 +300,7 @@ test("Pi model preflight failure never becomes an accepted or completed review",
         developerInstructions: "Read-only review",
         tools: ["read"],
       },
-      parent: { ...parent, modelRegistry },
+      parent: { ...parent, modelRegistry, modelRuntime },
     };
     const settled: SubagentSnapshot[] = [];
     manager.view.setOnSettled((snapshot) => settled.push(snapshot));

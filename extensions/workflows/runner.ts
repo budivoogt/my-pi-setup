@@ -89,7 +89,7 @@ export interface RunAgentOptions {
   cwd: string;
   loader: DefaultResourceLoader;
   settingsManager: SettingsManager;
-  modelRegistry: ExtensionContext["modelRegistry"];
+  modelRuntime?: ExtensionContext["modelRuntime"];
   signal?: AbortSignal;
   onProgress?: (progress: AgentProgress) => void;
   /** Test-only override for the per-tool execution timeout. */
@@ -433,6 +433,20 @@ export async function runAgent(
   let customTools: ToolDefinition[] | undefined;
   let session: AgentSession | undefined;
   let unsubscribeToolTimeout: (() => void) | undefined;
+  const modelRuntime = options.modelRuntime;
+  if (!modelRuntime) {
+    return {
+      ok: false,
+      output: "",
+      error:
+        "Failed to create agent session: workflow agents require the parent session's model runtime.",
+      aborted: false,
+      usage: emptyUsage(),
+      model: options.model?.id,
+      contextWindow: options.model?.contextWindow,
+      transcript: [],
+    };
+  }
   try {
     customTools =
       options.schema !== undefined
@@ -448,7 +462,7 @@ export async function runAgent(
       ...(options.thinkingLevel
         ? { thinkingLevel: options.thinkingLevel }
         : {}),
-      modelRegistry: options.modelRegistry,
+      modelRuntime,
       resourceLoader: options.loader,
       settingsManager: options.settingsManager,
       sessionManager: SessionManager.inMemory(options.cwd),
@@ -518,7 +532,7 @@ export async function runAgent(
           msg.model === sessionModel.id);
       const reportedId = msg.responseModel ?? msg.model;
       const reportedModel = responseMatchesSession
-        ? options.modelRegistry.find(msg.provider, reportedId)
+        ? modelRuntime.getModel(msg.provider, reportedId)
         : undefined;
       if (reportedModel) {
         modelId = reportedModel.id;
