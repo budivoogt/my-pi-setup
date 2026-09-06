@@ -34,6 +34,7 @@ import {
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 import { formatActivityStatus } from "../shared/activity-status.ts";
+import { resolveExtensionModelRuntime } from "../shared/model-runtime.ts";
 import { createWorkflowPersistence, persistWorkflowJson } from "./artifacts.ts";
 import { RunController } from "./controller.ts";
 import { sessionWorkflowRunIds, showWorkflowDashboard } from "./dashboard.ts";
@@ -576,7 +577,7 @@ export default function workflows(pi: ExtensionAPI) {
               cwd: ctx.cwd,
               loader: resources.loader,
               settingsManager: resources.settingsManager,
-              modelRegistry: ctx.modelRegistry,
+              modelRuntime: resolveExtensionModelRuntime(ctx),
               signal: runSignal,
               onProgress: (progress) => {
                 record.preview = progress.preview.slice(0, PREVIEW_LENGTH);

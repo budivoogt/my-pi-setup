@@ -25,6 +25,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { StringEnum } from "@earendil-works/pi-ai";
+import { resolveExtensionModelRuntime } from "../shared/model-runtime.ts";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -338,6 +339,7 @@ export default function (pi: ExtensionAPI) {
               ? { provider: ctx.model.provider, id: ctx.model.id }
               : undefined,
             inheritedThinkingLevel: pi.getThinkingLevel(),
+            modelRuntime: resolveExtensionModelRuntime(ctx),
             modelRegistry: ctx.modelRegistry,
           },
         }),

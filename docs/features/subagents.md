@@ -26,8 +26,9 @@ changing the child's configured effort or model.
 ## Architecture
 
 `extensions/subagents/src/backend.ts` defines the common session contract. Pi
-runs an in-process `AgentSession`; Claude uses its Agent SDK; Codex uses
-`codex app-server`. `extensions/subagents/src/manager.ts` owns the registry,
+runs an in-process `AgentSession` created with the parent `ModelRuntime`.
+Claude uses its Agent SDK; Codex uses `codex app-server`.
+`extensions/subagents/src/manager.ts` owns the registry,
 race-safe running and tracked reservations, event folding, wait capture,
 settlement disposal, pruning, bounded interrupt, and scope cleanup.
 `extensions/subagents/index.ts` is the Pi extension boundary and tool/UI layer.
@@ -49,6 +50,7 @@ non-empty `tools` array. Optional fields are `model`, `reasoning_effort`,
 Pi-only `service_tier`, `claude_model`, `claude_reasoning_effort`, and
 `allow_outside_parent_cwd`. The only service-tier contract is `fast`, which Pi
 maps to `priority` only when the effective request provider is `openai-codex`.
+That mapping is applied through the public `Agent.streamFunction` hook.
 
 The tool layer resolves roles for Pi and Claude before spawn. User-supplied
 model and effort values override the selected harness defaults. For Pi, role
@@ -84,15 +86,23 @@ an outside directory. A role can explicitly allow an outside initial cwd.
 
 This is not ongoing filesystem confinement: Pi tools can receive absolute paths.
 Pi has no operating-system permission sandbox. In-process children also share
-the parent process and model registry. Tool allowlists are useful capability
-controls, not filesystem containment. Explorer and reviewer omit shell and write
-tools. Worker has full coding tools and must receive bounded ownership.
+the parent process and `ModelRuntime` (credentials and custom providers).
+Tool allowlists are useful capability controls, not filesystem containment.
+Explorer and reviewer omit shell and write tools. Worker has full coding tools
+and must receive bounded ownership.
 
 Do not run multiple writers against overlapping files in one checkout. Give
 them separate git worktrees or strictly disjoint file/symbol ownership. An
 optional future Pi RPC backend may improve crash and process isolation, but it
 must explicitly propagate extension-registered providers and a filtered
 environment before becoming a safe default.
+
+Until [earendil-works/pi#8791](https://github.com/earendil-works/pi/issues/8791)
+releases `ctx.modelRuntime` and `ModelRegistry.modelRuntime` on npm, this
+package requires the [immutable patched Pi 0.85.1 SDK](https://github.com/budivoogt/pi/releases/tag/sdk-runtime-41aee614).
+See [setup](../../SETUP.md#temporary-sdk-prerequisite) for checksum verification
+and coordinated install instructions. Return to official
+`@earendil-works/pi-coding-agent` once that public API ships.
 
 ## Validation
 

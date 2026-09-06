@@ -1,11 +1,37 @@
-import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type {
+  ModelRegistry,
+  ModelRuntime,
+} from "@earendil-works/pi-coding-agent";
+
+type ModelCatalog = Pick<
+  ModelRegistry,
+  "find" | "getAll" | "getAvailable" | "getProviderAuthStatus" | "getError"
+>;
+
+/** Adapt the parent ModelRuntime to the synchronous preflight catalog. */
+export function catalogFromModelRuntime(
+  runtime: Pick<
+    ModelRuntime,
+    | "getModel"
+    | "getModels"
+    | "getAvailableSnapshot"
+    | "getProviderAuthStatus"
+    | "getError"
+  >,
+): ModelCatalog {
+  return {
+    find: (provider, modelId) => runtime.getModel(provider, modelId),
+    getAll: () => [...runtime.getModels()],
+    getAvailable: () => [...runtime.getAvailableSnapshot()],
+    getProviderAuthStatus: (provider) =>
+      runtime.getProviderAuthStatus(provider),
+    getError: () => runtime.getError(),
+  };
+}
 
 /** Resolve a Pi selection against the parent session's model registry. */
 export function preflightPiModel(
-  registry: Pick<
-    ModelRegistry,
-    "find" | "getAll" | "getAvailable" | "getProviderAuthStatus" | "getError"
-  >,
+  registry: ModelCatalog,
   hint: string | undefined,
   inherited: { provider: string; id: string } | undefined,
 ) {
