@@ -44,12 +44,22 @@ Files in `~/.pi/agent/agents/*.toml` override bundled roles by role name.
 
 Claude roles use exact model IDs through the Claude Agent SDK and the installed
 Claude Code login: Haiku 4.5/off for monitor, Sonnet 5/low for explorer,
-Sonnet 5/medium for editor, Opus 4.8/high for worker, and Fable 5/high for
+Sonnet 5/medium for editor, Opus 4.8/high for worker, and Fable 5/medium for
 reviewer. The Sonnet 5 levels use native adaptive effort rather than legacy
 fixed thinking-token budgets. Pi routes `explorer` to Luna/high/Fast,
 `luna-explorer` to Luna/medium/Fast, and `monitor` to Luna/low/Fast. Pi workers
 default to Grok 4.6/medium; editors stay on Grok 4.6/low. Fast maps to
 `priority` only for effective `openai-codex` requests.
+
+Reviewers prefer Astra (Pi) or Fable (Claude Code), at medium reasoning.
+On confirmed quota/token/credit exhaustion, the parent may request Grok 4.6
+via Pi at medium as the authoritative fallback. This is a review-only policy;
+other role mappings stay unchanged. The role schema has no automatic fallback
+field, so the parent must classify the failure and explicitly spawn the fallback.
+Authentication, network, empty-output, and other failures do not authorize it.
+Parent model family does not restrict Claude Code children; this package uses
+the Claude Agent SDK, and a headless `claude -p` invocation is another supported
+Claude Code integration approach.
 
 The parent enforces an eight-child concurrency cap and Pi children cannot spawn
 more children. Role-based checks restrict the child's initial working directory

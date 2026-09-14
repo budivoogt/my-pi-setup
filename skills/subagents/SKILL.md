@@ -61,8 +61,13 @@ behavior: Fast maps to `priority` only when the effective Pi request provider is
 Keep `editor` for small, already-decided, low-risk, mechanically verifiable
 edits. Use a strong `worker` for real implementation. Resolve authoritative
 reviewers from the current reviewer role profiles and applicable catalog.
-Grok runs on Pi, but is not an authoritative reviewer. Keep Grok worker/editor
-effort above `off`.
+Reviewers prefer Astra or Fable, all at medium reasoning. On confirmed quota,
+token-budget, or credit exhaustion of the preferred reviewer, explicitly spawn
+Grok 4.6 via Pi at medium as the authoritative fallback. Authentication, network,
+empty-output, and unclassified failures do not authorize it. Require a substantive
+completed review and name its actual model. This policy applies only to reviews;
+keep all worker, explorer, editor, monitor, and orchestrator mappings unchanged.
+Keep Grok worker/editor effort above `off`.
 
 ### Explicit rescue/red-team perspectives
 
@@ -74,8 +79,9 @@ Prefer a top-model panel when red-team is warranted (explicit request, contested
 high-risk work, or weak/uncertain review), ideally in parallel. Resolve each
 seat from the live accepted reviewer profiles for its native harness. Label
 outputs as additional perspectives. Do not infer a full panel from a generic
-request for review. Keep red-team children read-only and reviewer-scoped; Grok
-is not an authoritative reviewer.
+request for review. Keep red-team children read-only and reviewer-scoped. Grok
+may serve as the authoritative quota fallback described above. All review seats
+use medium reasoning.
 
 ## Claude Code Harness
 
@@ -94,6 +100,9 @@ role defaults live in `../../extensions/subagents/agents/` and local role overri
 
 Requires Claude Code to be installed and authenticated. It uses the existing
 Claude Code login and does not require changes to Claude's configuration.
+Parent model family does not restrict Claude Code children. This backend uses
+the Claude Agent SDK; `claude -p` is the headless CLI alternative, not a direct
+Anthropic-model request through Pi.
 
 ## Codex Harness
 

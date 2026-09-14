@@ -154,11 +154,11 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
       "off",
     ],
     reviewer: [
-      "openai-codex/gpt-5.6-sol",
-      "xhigh",
+      "openai-codex/gpt-6-astra",
+      "medium",
       undefined,
       "claude-fable-5",
-      "high",
+      "medium",
     ],
     worker: ["xai/grok-4.6", "medium", undefined, "claude-opus-5", "high"],
   } as const;
