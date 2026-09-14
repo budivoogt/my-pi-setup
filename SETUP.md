@@ -72,14 +72,14 @@ default, mapped to `priority` only when the effective request provider is
 
 The packaged Pi mapping is Luna/high/Fast for explorer, Luna/medium/Fast for
 luna-explorer, Luna/low/Fast for monitor, Grok 4.6/low for editor, Grok
-4.6/medium for worker, and Sol/xhigh for reviewer. Explicit spawn arguments
+4.6/medium for worker, and Astra/medium for reviewer. Explicit spawn arguments
 still take precedence for model and reasoning effort. Editor is the light path;
 worker is strong by default. Do not use Grok with off effort for worker/editor
-tasks, and do not use Grok as the authoritative reviewer.
+tasks. For review-only quota fallback, see the review policy in README.md.
 
 For the Claude harness, the packaged mapping is Haiku 4.5/off for monitor,
 Sonnet 5/low for explorer, Sonnet 5/medium for editor, Opus 4.8/high for
-worker, and Fable 5/high for reviewer. Claude Code must already be installed
+worker, and Fable 5/medium for reviewer. Claude Code must already be installed
 and signed in. The extension accepts only those exact Claude model IDs,
 avoiding local alias overrides.
 

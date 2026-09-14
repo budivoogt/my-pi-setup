@@ -62,18 +62,21 @@ Backend denylists remove child orchestration and user-question tools.
 Bundled models fail fast when a configured provider/model is unavailable. Pi
 uses Luna/high/Fast for explorer, Luna/medium/Fast for luna-explorer,
 Luna/low/Fast for monitor, Grok 4.6/low for editor, Grok 4.6/medium for worker,
-and Sol/xhigh for reviewer. Fast is applied only by the Pi backend, where it
+and Astra/medium for reviewer. Fast is applied only by the Pi backend, where it
 becomes the provider request's `serviceTier: "priority"`; non-OpenAI Pi model
 overrides ignore it, and Claude and Codex do not receive it. Low effort is a scope-appropriate editor default for small,
 already-decided, mechanically verifiable changes; non-trivial implementation
 should use `worker` rather than raising editor effort. Worker is strong by
-default. Grok is not the authoritative reviewer. The eight-agent cap is global
+default. Review-only quota fallback may use Grok 4.6/medium as the authoritative
+reviewer; the parent must classify quota exhaustion and request that fallback
+explicitly. Other failures do not qualify. Non-review role mappings are unchanged.
+The eight-agent cap is global
 across Pi, Claude, and Codex backends; it approximates Codex's thread setting
 rather than creating eight isolated operating-system sandboxes.
 
 Claude role defaults use exact IDs: `claude-haiku-4-5`/off for monitor,
 `claude-sonnet-5`/low for explorer, `claude-sonnet-5`/medium for editor,
-`claude-opus-4-8`/high for worker, and `claude-fable-5`/high for reviewer.
+`claude-opus-4-8`/high for worker, and `claude-fable-5`/medium for reviewer.
 These are the only Claude models accepted by the backend. Modern models use
 adaptive thinking plus the SDK's native effort control; Haiku uses fixed thinking
 only when explicitly enabled.

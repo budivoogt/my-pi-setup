@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Prefer Astra or Fable at medium reasoning for reviews, with explicit Grok
+  medium fallback on confirmed reviewer quota exhaustion. Other roles are unchanged.
+
 - Point Pi subagent and workflow child sessions at the parent ModelRuntime so they
   reuse credentials and custom providers. Until upstream `earendil-works/pi#8791`
   ships that public API, this package needs a temporary patched Pi 0.85.1 SDK.
