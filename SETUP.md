@@ -72,7 +72,7 @@ default, mapped to `priority` only when the effective request provider is
 
 The packaged Pi mapping is Luna/high/Fast for explorer, Luna/medium/Fast for
 luna-explorer, Luna/low/Fast for monitor, Grok 4.6/low for editor, Grok
-4.6/medium for worker, and Astra/medium for reviewer. Explicit spawn arguments
+4.7/medium for worker, and Astra/medium for reviewer. Explicit spawn arguments
 still take precedence for model and reasoning effort. Editor is the light path;
 worker is strong by default. Do not use Grok with off effort for worker/editor
 tasks. For review-only quota fallback, see the review policy in README.md.
