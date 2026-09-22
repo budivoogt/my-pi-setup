@@ -29,6 +29,17 @@ test("Sonnet 5 low uses native adaptive effort", () => {
   });
 });
 
+test("Opus 5.5 maps off to low effort because thinking cannot be disabled", () => {
+  assert.deepEqual(claudeReasoningOptions("claude-opus-5-5", "off"), {
+    thinking: { type: "adaptive" },
+    effort: "low",
+  });
+  assert.deepEqual(claudeReasoningOptions("claude-opus-5-5", "medium"), {
+    thinking: { type: "adaptive" },
+    effort: "medium",
+  });
+});
+
 test("Haiku uses fixed thinking only when explicitly enabled", () => {
   assert.deepEqual(claudeReasoningOptions("claude-haiku-4-5", "off"), {
     thinking: { type: "disabled" },

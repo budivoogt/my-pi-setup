@@ -184,6 +184,10 @@ export function claudeReasoningOptions(
   effort: ReasoningEffort | undefined,
 ) {
   if (effort === undefined) return {};
+  // Opus 5.5 rejects disabled thinking with a 400; low effort is the documented substitute.
+  if (effort === "off" && model === "claude-opus-5-5") {
+    return { thinking: { type: "adaptive" as const }, effort: "low" as const };
+  }
   if (effort === "off") {
     return { thinking: { type: "disabled" as const } };
   }

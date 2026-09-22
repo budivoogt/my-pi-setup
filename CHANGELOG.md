@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Map reasoning effort `off` to adaptive thinking at `low` effort on
+  `claude-opus-5-5`, which rejects disabled thinking with a 400.
 - Move the Claude worker role to `claude-opus-5-5`/medium, replacing
   `claude-opus-4-8` in the approved Claude model list.
 - Fall back to a freshly created ModelRuntime when the parent session exposes
