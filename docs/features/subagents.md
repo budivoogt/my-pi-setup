@@ -26,7 +26,8 @@ changing the child's configured effort or model.
 ## Architecture
 
 `extensions/subagents/src/backend.ts` defines the common session contract. Pi
-runs an in-process `AgentSession` created with the parent `ModelRuntime`.
+runs an in-process `AgentSession` created with the parent `ModelRuntime`
+when exposed, otherwise a freshly created runtime.
 Claude uses its Agent SDK; Codex uses `codex app-server`.
 `extensions/subagents/src/manager.ts` owns the registry,
 race-safe running and tracked reservations, event folding, wait capture,
@@ -89,7 +90,9 @@ an outside directory. A role can explicitly allow an outside initial cwd.
 
 This is not ongoing filesystem confinement: Pi tools can receive absolute paths.
 Pi has no operating-system permission sandbox. In-process children also share
-the parent process and `ModelRuntime` (credentials and custom providers).
+the parent process and, when exposed, its `ModelRuntime` (credentials and
+custom providers); otherwise they create a fresh runtime from the same stored
+configuration.
 Tool allowlists are useful capability controls, not filesystem containment.
 Explorer and reviewer omit shell and write tools. Worker has full coding tools
 and must receive bounded ownership.

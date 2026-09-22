@@ -46,8 +46,13 @@ export interface ParentContext {
   /** Parent pi model, for the pi backend's "inherit" default. */
   readonly inheritedModel?: { readonly provider: string; readonly id: string };
   readonly inheritedThinkingLevel?: string;
-  /** Parent ModelRuntime; required by the pi backend for child sessions. */
+  /** Parent ModelRuntime; the pi backend creates a fresh one when absent. */
   readonly modelRuntime?: ModelRuntime;
+  /**
+   * Factory for a fresh ModelRuntime when the parent exposes none.
+   * Test seam; production defaults to ModelRuntime.create.
+   */
+  readonly createModelRuntime?: () => Promise<ModelRuntime>;
   /** Parent model registry; used to resolve models when present. */
   readonly modelRegistry?: ModelRegistry;
 }

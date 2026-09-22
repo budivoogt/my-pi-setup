@@ -41,7 +41,7 @@ import {
   findMissingRoleTools,
 } from "../roles.ts";
 
-import { resolveExtensionModelRuntime } from "../../../shared/model-runtime.ts";
+import { ensureExtensionModelRuntime } from "../../../shared/model-runtime.ts";
 import {
   catalogFromModelRuntime,
   preflightPiModel,
@@ -342,12 +342,13 @@ const makePiSession = (
   task: SpawnTask,
 ): Effect.Effect<SubagentSession, SpawnError, Scope.Scope> =>
   Effect.gen(function* () {
-    const modelRuntime = resolveExtensionModelRuntime(task.parent);
-    if (!modelRuntime) {
-      return yield* new SpawnError({
-        message: "pi backend requires the parent session's model runtime.",
-      });
-    }
+    const modelRuntime = yield* Effect.tryPromise({
+      try: () => ensureExtensionModelRuntime(task.parent),
+      catch: (error) =>
+        new SpawnError({
+          message: `pi backend could not resolve a model runtime: ${boundedError(error)}`,
+        }),
+    });
     const registry =
       task.parent.modelRegistry ?? catalogFromModelRuntime(modelRuntime);
 
