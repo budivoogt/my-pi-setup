@@ -48,11 +48,11 @@ Sonnet 5/medium for editor, Opus 4.8/high for worker, and Fable 5/medium for
 reviewer. The Sonnet 5 levels use native adaptive effort rather than legacy
 fixed thinking-token budgets. Pi routes `explorer` to Luna/high/Fast,
 `luna-explorer` to Luna/medium/Fast, and `monitor` to Luna/low/Fast. Pi workers
-default to Grok 4.6/medium; editors stay on Grok 4.6/low. Fast maps to
+default to Grok 4.7/medium; editors stay on Grok 4.6/low. Fast maps to
 `priority` only for effective `openai-codex` requests.
 
 Reviewers prefer Astra (Pi) or Fable (Claude Code), at medium reasoning.
-On confirmed quota/token/credit exhaustion, the parent may request Grok 4.6
+On confirmed quota/token/credit exhaustion, the parent may request Grok 4.7
 via Pi at medium as the authoritative fallback. This is a review-only policy;
 other role mappings stay unchanged. The role schema has no automatic fallback
 field, so the parent must classify the failure and explicitly spawn the fallback.
