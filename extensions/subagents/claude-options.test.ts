@@ -11,7 +11,7 @@ test("Claude models are pinned to the approved exact IDs", () => {
   assert.deepEqual(ALLOWED_CLAUDE_MODELS, [
     "claude-haiku-4-5",
     "claude-sonnet-5",
-    "claude-opus-4-8",
+    "claude-opus-5-5",
     "claude-fable-5",
   ]);
   assert.equal(resolveClaudeModel(undefined), "claude-fable-5");

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move the Claude worker role to `claude-opus-5-5`/medium, replacing
+  `claude-opus-4-8` in the approved Claude model list.
 - Fall back to a freshly created ModelRuntime when the parent session exposes
   none, restoring Pi spawns on hosts without the upstream runtime API
   (earendil-works/pi#8791 still open). Spawns fail fast only when creation

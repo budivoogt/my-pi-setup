@@ -42,7 +42,7 @@ const PREVIEW_MAX_LENGTH = 4_096;
 export const ALLOWED_CLAUDE_MODELS = [
   "claude-haiku-4-5",
   "claude-sonnet-5",
-  "claude-opus-4-8",
+  "claude-opus-5-5",
   "claude-fable-5",
 ] as const;
 

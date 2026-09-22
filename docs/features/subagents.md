@@ -77,7 +77,7 @@ rather than creating eight isolated operating-system sandboxes.
 
 Claude role defaults use exact IDs: `claude-haiku-4-5`/off for monitor,
 `claude-sonnet-5`/low for explorer, `claude-sonnet-5`/medium for editor,
-`claude-opus-4-8`/high for worker, and `claude-fable-5`/medium for reviewer.
+`claude-opus-5-5`/medium for worker, and `claude-fable-5`/medium for reviewer.
 These are the only Claude models accepted by the backend. Modern models use
 adaptive thinking plus the SDK's native effort control; Haiku uses fixed thinking
 only when explicitly enabled.

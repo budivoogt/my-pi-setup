@@ -44,7 +44,7 @@ Files in `~/.pi/agent/agents/*.toml` override bundled roles by role name.
 
 Claude roles use exact model IDs through the Claude Agent SDK and the installed
 Claude Code login: Haiku 4.5/off for monitor, Sonnet 5/low for explorer,
-Sonnet 5/medium for editor, Opus 4.8/high for worker, and Fable 5/medium for
+Sonnet 5/medium for editor, Opus 5.5/medium for worker, and Fable 5/medium for
 reviewer. The Sonnet 5 levels use native adaptive effort rather than legacy
 fixed thinking-token budgets. Pi routes `explorer` to Luna/high/Fast,
 `luna-explorer` to Luna/medium/Fast, and `monitor` to Luna/low/Fast. Pi workers

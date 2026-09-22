@@ -160,7 +160,7 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
       "claude-fable-5",
       "medium",
     ],
-    worker: ["xai/grok-4.7", "medium", undefined, "claude-opus-4-8", "high"],
+    worker: ["xai/grok-4.7", "medium", undefined, "claude-opus-5-5", "medium"],
   } as const;
   for (const [
     name,
