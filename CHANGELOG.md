@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fall back to a freshly created ModelRuntime when the parent session exposes
+  none, restoring Pi spawns on hosts without the upstream runtime API
+  (earendil-works/pi#8791 still open). Spawns fail fast only when creation
+  itself fails.
+
 - Prefer Astra or Fable at medium reasoning for reviews, with explicit Grok
   medium fallback on confirmed reviewer quota exhaustion. Other roles are unchanged.
 

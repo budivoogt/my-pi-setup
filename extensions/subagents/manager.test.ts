@@ -3,7 +3,8 @@
  * exactly as the tool handlers drive it. The registry is test-only: scripted
  * stub sessions registered under the claude/codex names (the production
  * backends launch real processes and have their own live test files), plus
- * the real pi backend for its cheap registry precondition.
+ * the real pi backend with injected runtime factories (never a real
+ * ModelRuntime.create).
  */
 
 import assert from "node:assert/strict";
@@ -80,7 +81,7 @@ const parent: ParentContext = {
 
 function task(
   prompt: string,
-  options: Pick<SpawnTask, "persistent"> = {},
+  options: Partial<Pick<SpawnTask, "persistent" | "parent">> = {},
 ): SpawnTask {
   return { prompt, title: "test", cwd: process.cwd(), parent, ...options };
 }
@@ -214,11 +215,18 @@ test("simultaneous spawns reserve exactly the configured slots", async () => {
   });
 });
 
-test("pi spawn fails fast without the parent model runtime", async () => {
+test("pi spawn fails fast when runtime creation fails", async () => {
   await withManager(async (manager, runtime) => {
+    const failingParent: ParentContext = {
+      ...parent,
+      createModelRuntime: () => Promise.reject(new Error("no auth on file")),
+    };
     await assert.rejects(
-      runTool(runtime, manager.spawn("pi", task("needs a runtime"))),
-      /model runtime/,
+      runTool(
+        runtime,
+        manager.spawn("pi", task("needs a runtime", { parent: failingParent })),
+      ),
+      /could not resolve a model runtime/,
     );
     // The failed spawn must release its concurrency reservation.
     const snap = await runTool(runtime, manager.spawn("codex", task("ok")));
