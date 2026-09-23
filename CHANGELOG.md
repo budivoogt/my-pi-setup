@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Move the Claude reviewer role to `claude-opus-5-5`/medium. Pi reviewer stays
+  Astra/medium. Review-only quota fallback remains Grok 4.6/medium.
+
 - Route Pi Luna roles to GPT-6 Luna (`explorer` high/Fast, `luna-explorer`
   medium/Fast, `monitor` low/Fast). Codex implementation workers stay in the
   Codex adapter (`gpt-6-sol`); Pi workers remain Grok 4.7.

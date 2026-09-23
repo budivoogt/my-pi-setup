@@ -61,7 +61,7 @@ behavior: Fast maps to `priority` only when the effective Pi request provider is
 Keep `editor` for small, already-decided, low-risk, mechanically verifiable
 edits. Use a strong `worker` for real implementation. Resolve authoritative
 reviewers from the current reviewer role profiles and applicable catalog.
-Reviewers prefer Astra or Fable, all at medium reasoning. On confirmed quota,
+Reviewers prefer Astra or Opus 5.5, all at medium reasoning. On confirmed quota,
 token-budget, or credit exhaustion of the preferred reviewer, explicitly spawn
 Grok 4.6 via Pi at medium as the authoritative fallback. Authentication, network,
 empty-output, and unclassified failures do not authorize it. Require a substantive

@@ -157,7 +157,7 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
       "openai-codex/gpt-6-astra",
       "medium",
       undefined,
-      "claude-fable-5",
+      "claude-opus-5-5",
       "medium",
     ],
     worker: ["xai/grok-4.7", "medium", undefined, "claude-opus-5-5", "medium"],
