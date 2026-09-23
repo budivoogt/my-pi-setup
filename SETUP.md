@@ -79,7 +79,7 @@ tasks. For review-only quota fallback, see the review policy in README.md.
 
 For the Claude harness, the packaged mapping is Haiku 4.5/off for monitor,
 Sonnet 5/low for explorer, Sonnet 5/medium for editor, Opus 5.5/medium for
-worker, and Fable 5/medium for reviewer. Claude Code must already be installed
+worker, and Opus 5.5/medium for reviewer. Claude Code must already be installed
 and signed in. The extension accepts only those exact Claude model IDs,
 avoiding local alias overrides.
 

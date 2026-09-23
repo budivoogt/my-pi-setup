@@ -62,7 +62,7 @@ Backend denylists remove child orchestration and user-question tools.
 
 Bundled models fail fast when a configured provider/model is unavailable. Pi
 uses Luna/high/Fast for explorer, Luna/medium/Fast for luna-explorer,
-Luna/low/Fast for monitor, Grok 4.6/low for editor, Grok 4.6/medium for worker,
+Luna/low/Fast for monitor, Grok 4.6/low for editor, Grok 4.7/medium for worker,
 and Astra/medium for reviewer. Fast is applied only by the Pi backend, where it
 becomes the provider request's `serviceTier: "priority"`; non-OpenAI Pi model
 overrides ignore it, and Claude and Codex do not receive it. Low effort is a scope-appropriate editor default for small,
@@ -77,7 +77,7 @@ rather than creating eight isolated operating-system sandboxes.
 
 Claude role defaults use exact IDs: `claude-haiku-4-5`/off for monitor,
 `claude-sonnet-5`/low for explorer, `claude-sonnet-5`/medium for editor,
-`claude-opus-5-5`/medium for worker, and `claude-fable-5`/medium for reviewer.
+`claude-opus-5-5`/medium for worker, and `claude-opus-5-5`/medium for reviewer.
 These are the only Claude models accepted by the backend. Modern models use
 adaptive thinking plus the SDK's native effort control; Haiku uses fixed thinking
 only when explicitly enabled.
