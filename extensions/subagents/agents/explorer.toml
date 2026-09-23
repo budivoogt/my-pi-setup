@@ -4,7 +4,7 @@ developer_instructions = "Locate relevant files, symbols, and behavior. Report c
 tools = ["read", "grep", "find", "ls"]
 # Deliberate 2026-08-16: Luna/Fast replaces Spark despite Spark's dedicated
 # allocation. The user chose the stronger low-latency explorer path explicitly.
-model = "openai-codex/gpt-5.6-luna"
+model = "openai-codex/gpt-6-luna"
 reasoning_effort = "high"
 service_tier = "fast"
 claude_model = "claude-sonnet-5"

@@ -140,14 +140,14 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
   const expectedDefaults = {
     editor: ["xai/grok-4.6", "low", undefined, "claude-sonnet-5", "medium"],
     "luna-explorer": [
-      "openai-codex/gpt-5.6-luna",
+      "openai-codex/gpt-6-luna",
       "medium",
       "fast",
       "claude-sonnet-5",
       "low",
     ],
     monitor: [
-      "openai-codex/gpt-5.6-luna",
+      "openai-codex/gpt-6-luna",
       "low",
       "fast",
       "claude-haiku-4-5",
@@ -184,11 +184,11 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
 test("bundled explorer maps Pi to Luna high fast and Claude to Sonnet 5 low", () => {
   const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-defaults-"));
   const explorer = loadRoleProfiles(agentDir).get("explorer");
-  assert.equal(explorer?.model, "openai-codex/gpt-5.6-luna");
+  assert.equal(explorer?.model, "openai-codex/gpt-6-luna");
   assert.equal(explorer?.reasoningEffort, "high");
   assert.equal(explorer?.serviceTier, "fast");
   assert.deepEqual(roleDefaultsForHarness(explorer!, "pi"), {
-    model: "openai-codex/gpt-5.6-luna",
+    model: "openai-codex/gpt-6-luna",
     reasoningEffort: "high",
     serviceTier: "fast",
   });
