@@ -16,7 +16,7 @@ function task(prompt: string): SpawnTask {
     prompt,
     title: "live Claude test",
     cwd: process.cwd(),
-    model: "claude-sonnet-5",
+    model: "claude-sonnet-5-5",
     reasoningEffort: "low",
     parent,
   };

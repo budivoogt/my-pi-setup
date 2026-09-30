@@ -41,7 +41,7 @@ const PREVIEW_MAX_LENGTH = 4_096;
 
 export const ALLOWED_CLAUDE_MODELS = [
   "claude-haiku-4-5",
-  "claude-sonnet-5",
+  "claude-sonnet-5-5",
   "claude-opus-5-5",
   "claude-fable-5",
 ] as const;
@@ -184,8 +184,11 @@ export function claudeReasoningOptions(
   effort: ReasoningEffort | undefined,
 ) {
   if (effort === undefined) return {};
-  // Opus 5.5 rejects disabled thinking with a 400; low effort is the documented substitute.
-  if (effort === "off" && model === "claude-opus-5-5") {
+  // Opus 5.5 and Sonnet 5.5 reject disabled thinking with a 400; low effort is the documented substitute.
+  if (
+    effort === "off" &&
+    (model === "claude-opus-5-5" || model === "claude-sonnet-5-5")
+  ) {
     return { thinking: { type: "adaptive" as const }, effort: "low" as const };
   }
   if (effort === "off") {

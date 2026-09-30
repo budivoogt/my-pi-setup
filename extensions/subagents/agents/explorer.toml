@@ -7,5 +7,5 @@ tools = ["read", "grep", "find", "ls"]
 model = "openai-codex/gpt-6-luna"
 reasoning_effort = "high"
 service_tier = "fast"
-claude_model = "claude-sonnet-5"
+claude_model = "claude-sonnet-5-5"
 claude_reasoning_effort = "low"

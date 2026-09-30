@@ -76,7 +76,7 @@ across Pi, Claude, and Codex backends; it approximates Codex's thread setting
 rather than creating eight isolated operating-system sandboxes.
 
 Claude role defaults use exact IDs: `claude-haiku-4-5`/off for monitor,
-`claude-sonnet-5`/low for explorer, `claude-sonnet-5`/medium for editor,
+`claude-sonnet-5-5`/low for explorer, `claude-sonnet-5-5`/medium for editor,
 `claude-opus-5-5`/medium for worker, and `claude-opus-5-5`/medium for reviewer.
 These are the only Claude models accepted by the backend. Modern models use
 adaptive thinking plus the SDK's native effort control; Haiku uses fixed thinking

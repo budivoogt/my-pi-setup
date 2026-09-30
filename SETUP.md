@@ -59,7 +59,7 @@ tools = ["read", "grep", "find", "ls"]
 model = "openai-codex/gpt-6-luna"
 reasoning_effort = "high"
 service_tier = "fast"
-claude_model = "claude-sonnet-5"
+claude_model = "claude-sonnet-5-5"
 claude_reasoning_effort = "low"
 ```
 
@@ -78,7 +78,7 @@ worker is strong by default. Do not use Grok with off effort for worker/editor
 tasks. For review-only quota fallback, see the review policy in README.md.
 
 For the Claude harness, the packaged mapping is Haiku 4.5/off for monitor,
-Sonnet 5/low for explorer, Sonnet 5/medium for editor, Opus 5.5/medium for
+Sonnet 5.5/low for explorer, Sonnet 5.5/medium for editor, Opus 5.5/medium for
 worker, and Opus 5.5/medium for reviewer. Claude Code must already be installed
 and signed in. The extension accepts only those exact Claude model IDs,
 avoiding local alias overrides.

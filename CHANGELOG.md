@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Move the Claude explorer, luna-explorer, and editor roles from
+  `claude-sonnet-5` to `claude-sonnet-5-5`, which replaces Sonnet 5 in the
+  accepted model list. Effort `off` maps to adaptive `low` on Sonnet 5.5,
+  which rejects disabled thinking.
+
 - Move the Claude reviewer role to `claude-opus-5-5`/medium. Pi reviewer stays
   Astra/medium. Review-only quota fallback remains Grok 4.6/medium.
 

@@ -31,7 +31,7 @@ developer_instructions = "Locate evidence and do not edit files."
 tools = ["read", "grep", "find", "ls", "read"]
 reasoning_effort = "high"
 service_tier = "fast"
-claude_model = "claude-sonnet-5"
+claude_model = "claude-sonnet-5-5"
 claude_reasoning_effort = "low"
 `;
 
@@ -40,7 +40,7 @@ test("parses and normalizes a role profile", () => {
   assert.equal(role.name, "explorer");
   assert.equal(role.reasoningEffort, "high");
   assert.equal(role.serviceTier, "fast");
-  assert.equal(role.claudeModel, "claude-sonnet-5");
+  assert.equal(role.claudeModel, "claude-sonnet-5-5");
   assert.equal(role.claudeReasoningEffort, "low");
   assert.deepEqual(role.tools, ["read", "grep", "find", "ls"]);
   assert.equal(role.allowOutsideParentCwd, false);
@@ -134,16 +134,16 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
     ],
   );
   assert.equal(roles.get("explorer")?.model, undefined);
-  assert.equal(roles.get("explorer")?.claudeModel, "claude-sonnet-5");
+  assert.equal(roles.get("explorer")?.claudeModel, "claude-sonnet-5-5");
   assert.equal(roles.get("custom")?.name, "custom");
 
   const expectedDefaults = {
-    editor: ["xai/grok-4.6", "low", undefined, "claude-sonnet-5", "medium"],
+    editor: ["xai/grok-4.6", "low", undefined, "claude-sonnet-5-5", "medium"],
     "luna-explorer": [
       "openai-codex/gpt-6-luna",
       "medium",
       "fast",
-      "claude-sonnet-5",
+      "claude-sonnet-5-5",
       "low",
     ],
     monitor: [
@@ -181,7 +181,7 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
   assert.ok(fs.existsSync(path.join(BUNDLED_ROLES_DIR, "worker.toml")));
 });
 
-test("bundled explorer maps Pi to Luna high fast and Claude to Sonnet 5 low", () => {
+test("bundled explorer maps Pi to Luna high fast and Claude to Sonnet 5.5 low", () => {
   const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "subagent-defaults-"));
   const explorer = loadRoleProfiles(agentDir).get("explorer");
   assert.equal(explorer?.model, "openai-codex/gpt-6-luna");
@@ -193,7 +193,7 @@ test("bundled explorer maps Pi to Luna high fast and Claude to Sonnet 5 low", ()
     serviceTier: "fast",
   });
   assert.deepEqual(roleDefaultsForHarness(explorer!, "claude"), {
-    model: "claude-sonnet-5",
+    model: "claude-sonnet-5-5",
     reasoningEffort: "low",
   });
   assert.deepEqual(explorer?.tools, ["read", "grep", "find", "ls"]);
