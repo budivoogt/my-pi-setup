@@ -83,6 +83,7 @@ the owning Pi session and are cleaned up during teardown.
 
 ![Pi setup interface](assets/pi-setup.jpeg)
 
-Installation and verification are in [`SETUP.md`](SETUP.md). Architecture and
+This package requires the [patched Pi 1.0.0 SDK](https://github.com/budivoogt/pi/releases/tag/sdk-runtime-cfcd9f16).
+Installation and checksum verification are in [`SETUP.md`](SETUP.md). Architecture and
 safety details are in [`docs/features/subagents.md`](docs/features/subagents.md)
 and [`docs/features/background-terminals.md`](docs/features/background-terminals.md).

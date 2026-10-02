@@ -105,7 +105,7 @@ environment before becoming a safe default.
 
 Until [earendil-works/pi#8791](https://github.com/earendil-works/pi/issues/8791)
 releases `ctx.modelRuntime` and `ModelRegistry.modelRuntime` on npm, this
-package requires the [immutable patched Pi 0.85.1 SDK](https://github.com/budivoogt/pi/releases/tag/sdk-runtime-41aee614).
+package requires the [immutable patched Pi 1.0.0 SDK](https://github.com/budivoogt/pi/releases/tag/sdk-runtime-cfcd9f16).
 See [setup](../../SETUP.md#temporary-sdk-prerequisite) for checksum verification
 and coordinated install instructions. Return to official
 `@earendil-works/pi-coding-agent` once that public API ships.

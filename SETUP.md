@@ -2,14 +2,14 @@
 
 ## Temporary SDK prerequisite
 
-Install the [immutable SDK fork](https://github.com/budivoogt/pi/releases/tag/sdk-runtime-41aee614)
-before updating this package. Its version still reads `0.85.1`, so checking the
+Install the [immutable SDK fork](https://github.com/budivoogt/pi/releases/tag/sdk-runtime-cfcd9f16)
+before updating this package. Its version reads `1.0.0`, so checking the
 version alone does not prove the patch is present. Download, verify, then install:
 
 ```sh
 curl --fail --location --output pi-sdk.tgz \
-  https://github.com/budivoogt/pi/releases/download/sdk-runtime-41aee614/earendil-works-pi-coding-agent-0.85.1.tgz &&
-printf '%s  %s\n' 3fb5eaa7eaf4217cd09af8161534d40094be6a9acdf811830c50c1681417ca0f pi-sdk.tgz | \
+  https://github.com/budivoogt/pi/releases/download/sdk-runtime-cfcd9f16/earendil-works-pi-coding-agent-1.0.0.tgz &&
+printf '%s  %s\n' 614ec0c07d00f0a7129dd1b7231d10033c4ee18e90307e91cdf0dab8d79a6fcf pi-sdk.tgz | \
   shasum --algorithm 256 --check &&
 npm install --global --ignore-scripts --omit=dev ./pi-sdk.tgz
 ```
@@ -34,14 +34,14 @@ Restart Pi or run `/reload`. The package manifest exposes only the subagents
 and background-terminals extensions and the subagents skill; it does not enable
 the fork's other extensions, prompts, skills, or themes.
 
-Pi 0.85.1 is the locally verified version. The package targets the
+Pi 1.0.0 is the locally verified version. The package targets the
 `@earendil-works/pi-*` distribution used by this setup.
 
 Child Pi sessions and workflow agents must reuse the parent `ModelRuntime`
 (`ctx.modelRuntime`, also available as `ModelRegistry.modelRuntime`). That
 public accessor is not in an official `@earendil-works/pi-coding-agent`
 release yet. Until [earendil-works/pi#8791](https://github.com/earendil-works/pi/issues/8791)
-ships, install this package against a temporary patched 0.85.1 SDK that
+ships, install this package against a temporary patched 1.0.0 SDK that
 exposes those APIs. Return to the official package once the upstream public
 API is released.
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { applyPiServiceTierToAgent } from "./src/backends/pi.ts";
 
@@ -28,7 +29,7 @@ test("fast Codex requests wrap streamFunction with priority", () => {
     { provider: "openai-codex" } as Parameters<
       AgentSession["agent"]["streamFunction"]
     >[0],
-    { messages: [] } as Parameters<AgentSession["agent"]["streamFunction"]>[1],
+    normalizeContext({ messages: [] }),
     { temperature: 0 } as Parameters<
       AgentSession["agent"]["streamFunction"]
     >[2],
@@ -49,7 +50,7 @@ test("fast wrapping leaves non-Codex providers unchanged", () => {
     { provider: "xai" } as Parameters<
       AgentSession["agent"]["streamFunction"]
     >[0],
-    { messages: [] } as Parameters<AgentSession["agent"]["streamFunction"]>[1],
+    normalizeContext({ messages: [] }),
     { temperature: 0 } as Parameters<
       AgentSession["agent"]["streamFunction"]
     >[2],
@@ -66,7 +67,7 @@ test("omitted service tier leaves streamFunction unwrapped", () => {
     { provider: "openai-codex" } as Parameters<
       AgentSession["agent"]["streamFunction"]
     >[0],
-    { messages: [] } as Parameters<AgentSession["agent"]["streamFunction"]>[1],
+    normalizeContext({ messages: [] }),
     { temperature: 0 } as Parameters<
       AgentSession["agent"]["streamFunction"]
     >[2],
