@@ -94,6 +94,9 @@ adaptive thinking with the SDK's native effort level. Haiku uses fixed thinking
 budgets only when reasoning is explicitly enabled.
 
 Use the strong worker model and effort in the current Claude role profile.
+Prefer this harness with `role: worker` (Sonnet 5.5) for frontend, product, and
+creative implementation; backend implementation stays on the Pi harness worker
+(GPT-6.1 Sol).
 Keep light models for explorer/editor roles, not as default implementation workers.
 The allowlist lives in `../../extensions/subagents/src/backends/claude.ts` (`ALLOWED_CLAUDE_MODELS`);
 role defaults live in `../../extensions/subagents/agents/` and local role overrides.

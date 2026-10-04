@@ -161,7 +161,7 @@ test("loads harness-mapped bundled roles and applies whole user overrides by nam
       "medium",
     ],
     worker: [
-      "xai/grok-4.6",
+      "openai-codex/gpt-6.1-sol",
       "medium",
       undefined,
       "claude-sonnet-5-5",

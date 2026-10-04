@@ -44,11 +44,13 @@ Files in `~/.pi/agent/agents/*.toml` override bundled roles by role name.
 
 Claude roles use exact model IDs through the Claude Agent SDK and the installed
 Claude Code login: Haiku 4.5/off for monitor, Sonnet 5.5/low for explorer,
-Sonnet 5.5/medium for editor, Opus 5.5/medium for worker, and Opus 5.5/medium for
+Sonnet 5.5/medium for editor, Sonnet 5.5/medium for worker, and Opus 5.5/medium for
 reviewer. The Sonnet 5.5 levels use native adaptive effort rather than legacy
 fixed thinking-token budgets. Pi routes `explorer` to Luna/high/Fast,
 `luna-explorer` to Luna/medium/Fast, and `monitor` to Luna/low/Fast. Pi workers
-default to Grok 4.7/medium; editors stay on Grok 4.6/low. Fast maps to
+default to GPT-6.1 Sol/medium for backend work; spawn the worker with
+`harness: claude` (Sonnet 5.5) for frontend, product, and creative work.
+Editors stay on Grok 4.6/low. Fast maps to
 `priority` only for effective `openai-codex` requests.
 
 Reviewers prefer Astra (Pi) or Opus 5.5 (Claude Code), at medium reasoning.
