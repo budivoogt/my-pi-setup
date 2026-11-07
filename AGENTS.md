@@ -1,4 +1,4 @@
-READ /Users/budi_daily/Documents/Coding/projects/Svelte/agent-scripts/AGENTS.MD BEFORE ANYTHING (skip if missing).
+Shared policy is loaded by the host's user adapter. If the shared policy is missing, report incomplete runtime setup.
 
 When working in typescript:
 
